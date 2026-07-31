@@ -33,6 +33,8 @@ class TranscriptionManager:
 
         self.using_cached_params = False
         self.awaiting_final_result = False
+        self.post_stop_frames = 0
+        self.last_post_stop_text = ""
         self.safety_timer_id: int | None = None
 
         # Callbacks set by app.py
@@ -118,6 +120,8 @@ class TranscriptionManager:
         self.audio_capture.stop()
         self.asr_client.finish_sending()
         self.awaiting_final_result = True
+        self.post_stop_frames = 0
+        self.last_post_stop_text = self.app_state.transcription_text
 
         # Safety timeout
         self.safety_timer_id = GLib.timeout_add(
@@ -145,9 +149,25 @@ class TranscriptionManager:
             self.on_overlay_update(text)
         if self.app_state.recording_state == RecordingState.STARTING:
             self._set_state(RecordingState.RECORDING)
-        if self.awaiting_final_result:
+
+        if not self.awaiting_final_result:
+            return GLib.SOURCE_REMOVE
+
+        # Results are cumulative rewrites and keep being corrected after
+        # the user stops, so completing on the first post-stop frame drops
+        # the final pass. Wait until two consecutive frames agree; the
+        # safety timeout is the backstop. (Waiting for an "finish" event
+        # is not an option -- the server does not send one.)
+        if self.post_stop_frames and text == self.last_post_stop_text:
             self.awaiting_final_result = False
+            if self.safety_timer_id:
+                GLib.source_remove(self.safety_timer_id)
+                self.safety_timer_id = None
             self._complete_transcription()
+            return GLib.SOURCE_REMOVE
+
+        self.post_stop_frames += 1
+        self.last_post_stop_text = text
         return GLib.SOURCE_REMOVE
 
     def _on_asr_finish(self) -> bool:
@@ -162,10 +182,11 @@ class TranscriptionManager:
     def _on_asr_error(self, error) -> bool:
         if self.app_state.recording_state == RecordingState.IDLE:
             return GLib.SOURCE_REMOVE
-        logger.error("ASR error: %s", error)
-        if self.using_cached_params:
-            self._handle_auth_failure()
-            return GLib.SOURCE_REMOVE
+        # Transport faults -- handshake timeouts, dropped sockets, missed
+        # pongs -- are not auth failures, and clearing the saved params for
+        # them forced a full re-login after every network hiccup. Real auth
+        # failures arrive separately via ASRClient.on_auth_error.
+        logger.error("ASR transport error (credentials kept): %s", error)
         self.app_state.error_message = "连接出错"
         GLib.timeout_add(int(AUTH_EXPIRY_DELAY * 1000), self._reset_to_idle)
         return GLib.SOURCE_REMOVE

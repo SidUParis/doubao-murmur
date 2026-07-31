@@ -47,6 +47,7 @@ AUTH_ERROR_KEYWORDS = [
 CONFIG_DIR_NAME = "doubao-murmur"
 PARAMS_FILE = "asr_params.json"
 KEYBOARD_FILE = "keyboard.json"
+PTT_FILE = "ptt_button.json"
 
 
 def get_config_dir() -> Path:
@@ -69,9 +70,17 @@ def get_keyboard_config_path() -> Path:
     return get_config_dir() / KEYBOARD_FILE
 
 
+def get_ptt_config_path() -> Path:
+    """Get the path to the PTT button position JSON file."""
+    return get_config_dir() / PTT_FILE
+
+
 # --- Timeouts ---
 
-STOP_SAFETY_TIMEOUT = 1.0  # seconds
+# Backstop for waiting out post-stop corrections: the first frame after
+# the user stops lands ~2 s later, so 1 s always won and every corrected
+# result was discarded.
+STOP_SAFETY_TIMEOUT = 3.0  # seconds
 DEBOUNCE_INTERVAL = 0.3  # seconds
 PASTE_DELAY = 0.05  # seconds between copy and paste simulation
 AUTH_EXPIRY_DELAY = 2.0  # seconds before resetting after auth error
@@ -85,7 +94,10 @@ OVERLAY_HEIGHT = 88
 # height up to OVERLAY_MAX_LINES before the oldest words scroll off.
 OVERLAY_TEXT_CHARS = 88
 OVERLAY_MAX_LINES = 5
-PTT_BUTTON_SIZE = 60
+PTT_BUTTON_SIZE = 26
+PTT_BUTTON_PEEK = 7          # px still visible when tucked against an edge
+PTT_BUTTON_SNAP_DIST = 140   # drop within this of a side edge to enable tucking
+PTT_BUTTON_IDLE_OPACITY = 0.45
 
 # --- User-Agent for WebView ---
 

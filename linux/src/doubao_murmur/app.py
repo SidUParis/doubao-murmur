@@ -126,14 +126,10 @@ class DoubaoMurmurApp(Gtk.Application):
             "recording-state-changed", self._on_recording_state_changed
         )
 
-        # With a global hotkey available, the PTT button only appears
-        # while recording (it would otherwise cover screen content).
-        # Without one it is the only way to start recording, so keep it
-        # always visible when logged in.
-        if (
-            self.app_state.login_status == LoginStatus.LOGGED_IN
-            and not self.hotkey_manager.has_global_hotkey
-        ):
+        # Keep the button docked like an input-method widget: it is small,
+        # dims while idle and tucks against a screen edge, so it no longer
+        # needs to be hidden between dictations.
+        if self.app_state.login_status == LoginStatus.LOGGED_IN:
             self.ptt_button.show()
 
         self.app_state.connect(
@@ -264,20 +260,12 @@ class DoubaoMurmurApp(Gtk.Application):
         if self.ptt_button:
             is_recording = state_str in ("starting", "recording", "stopping")
             self.ptt_button.set_recording_state(is_recording)
-            if self.hotkey_manager and self.hotkey_manager.has_global_hotkey:
-                if is_recording:
-                    self.ptt_button.show()
-                else:
-                    self.ptt_button.hide()
 
     def _on_login_status_changed(self, app_state, status_str: str) -> None:
         if self.ptt_button:
             if status_str != LoginStatus.LOGGED_IN.value:
                 self.ptt_button.hide()
-            elif not (
-                self.hotkey_manager
-                and self.hotkey_manager.has_global_hotkey
-            ):
+            else:
                 self.ptt_button.show()
 
     def _on_auth_expired(self) -> None:

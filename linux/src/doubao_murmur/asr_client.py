@@ -220,14 +220,26 @@ def _load_websockets():
 
 
 def _websocket_header_kwargs(connect_func, headers: dict[str, str]) -> dict:
-    """Return the correct header kwarg for installed websockets version."""
+    """Return the correct header kwarg for installed websockets version.
+
+    Also relaxes the pong deadline. websockets defaults to ping_timeout=20
+    and tears the socket down when a pong is late, which killed a live
+    dictation at 45 s while the server was still streaming results. Keep
+    sending pings, but let the ASR protocol decide when the session ends.
+    """
     try:
         params = inspect.signature(connect_func).parameters
     except (TypeError, ValueError):
         return {"additional_headers": headers}
-    if "additional_headers" in params:
-        return {"additional_headers": headers}
-    return {"extra_headers": headers}
+
+    kwargs = (
+        {"additional_headers": headers}
+        if "additional_headers" in params
+        else {"extra_headers": headers}
+    )
+    if "ping_timeout" in params:
+        kwargs["ping_timeout"] = None
+    return kwargs
 
 
 def _is_connection_closed_error(error: Exception) -> bool:

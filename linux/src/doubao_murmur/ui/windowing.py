@@ -158,19 +158,39 @@ def _x11_pin_above(window: Gtk.Window, role: OverlayRole, state: dict) -> bool:
 
     x = y = None
     # The keyboard restores its own saved geometry; never auto-place it.
-    if role != OverlayRole.KEYBOARD:
-        display = window.get_display()
-        monitor = display.get_monitors().get_item(0) if display else None
+    # The keyboard and the PTT button restore their own saved geometry;
+    # never auto-place them.
+    if role not in (OverlayRole.KEYBOARD, OverlayRole.PTT):
+        monitor = _monitor_for(window)
         if monitor is not None:
             geo = monitor.get_geometry()
             x = geo.x + (geo.width - width) // 2
-            if role == OverlayRole.PTT:
-                y = geo.y + geo.height - height - 24
-            else:
-                y = geo.y + 16
+            # Three fifths down rather than pinned to the top edge: the
+            # status overlay is the only feedback during the ASR
+            # handshake, and at the top of a large screen it sits far
+            # from whatever the user is dictating into.
+            y = geo.y + geo.height * 3 // 5
 
     _x11_apply_wm_state(xid, x, y)
     return GLib.SOURCE_REMOVE
+
+
+def _monitor_for(window: Gtk.Window):
+    """The monitor this window is on, falling back to the first one.
+
+    `get_monitors().get_item(0)` does not follow the physical layout and
+    is not stable across sessions -- on a three-head desktop index 0 can
+    be the middle screen -- so overlays land on the wrong monitor.
+    """
+    display = window.get_display()
+    if display is None:
+        return None
+    surface = window.get_surface()
+    if surface is not None and hasattr(display, "get_monitor_at_surface"):
+        monitor = display.get_monitor_at_surface(surface)
+        if monitor is not None:
+            return monitor
+    return display.get_monitors().get_item(0)
 
 
 _x11_conn = None
