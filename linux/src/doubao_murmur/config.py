@@ -48,6 +48,7 @@ CONFIG_DIR_NAME = "doubao-murmur"
 PARAMS_FILE = "asr_params.json"
 KEYBOARD_FILE = "keyboard.json"
 PTT_FILE = "ptt_button.json"
+PASTE_OVERRIDES_FILE = "paste_overrides.json"
 
 
 def get_config_dir() -> Path:
@@ -105,3 +106,8 @@ WEBVIEW_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
+
+
+def get_paste_overrides_path() -> Path:
+    """Path to the per-WM_CLASS paste-keystroke override file."""
+    return get_config_dir() / PASTE_OVERRIDES_FILE

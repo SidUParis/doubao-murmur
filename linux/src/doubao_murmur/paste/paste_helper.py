@@ -11,10 +11,11 @@ Methods (in priority order):
 from __future__ import annotations
 
 import logging
+import json
 import subprocess
 import time
 
-from doubao_murmur.config import PASTE_DELAY
+from doubao_murmur.config import PASTE_DELAY, get_paste_overrides_path
 from doubao_murmur.host_tools import command_candidates
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class PasteHelper:
 
         Terminals use Ctrl+Shift+V; everything else uses Ctrl+V.
         """
-        use_shift = PasteHelper._focused_window_is_terminal()
+        use_shift = PasteHelper._paste_needs_shift()
 
         # Try ydotool (works on both Wayland and X11)
         # Keycodes: 29=LEFTCTRL, 42=LEFTSHIFT, 47=V
@@ -188,9 +189,32 @@ class PasteHelper:
         )
 
     @staticmethod
-    def _focused_window_is_terminal() -> bool:
-        """Check whether the focused window is a terminal emulator (X11)."""
+    def _paste_needs_shift() -> bool:
+        """Whether the focused window should get Ctrl+Shift+V.
+
+        A per-WM_CLASS override file comes first, because the WM_CLASS of
+        the local window does not always say what will receive the keys.
+        A remote-desktop client forwards them verbatim, so what matters is
+        the application focused on the far side, which is invisible from
+        here: Ctrl+V reaches the remote TUI directly, where Claude Code
+        reads the clipboard but Codex only accepts images and reports
+        "failed to paste image". Ctrl+Shift+V is instead consumed by the
+        remote terminal, which pastes text that any TUI accepts.
+
+        Overrides live in paste_overrides.json as {WM_CLASS: combo}, with
+        combo "ctrl+v" or "ctrl+shift+v"; WM_CLASS is matched lowercased
+        against every entry the focused window reports.
+        """
         wm_classes = PasteHelper._focused_window_classes()
+        overrides = PasteHelper._load_paste_overrides()
+        for wm_class in wm_classes:
+            combo = overrides.get(wm_class)
+            if combo:
+                logger.info(
+                    "Paste override for %s: %s", wm_class, combo
+                )
+                return "shift" in combo.lower()
+
         if not wm_classes:
             return False
         is_terminal = any(c in _TERMINAL_WM_CLASSES for c in wm_classes)
@@ -200,6 +224,22 @@ class PasteHelper:
             is_terminal,
         )
         return is_terminal
+
+    @staticmethod
+    def _load_paste_overrides() -> dict[str, str]:
+        path = get_paste_overrides_path()
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return {
+                str(k).strip().lower(): str(v)
+                for k, v in data.items()
+                if isinstance(data, dict)
+            }
+        except Exception as e:
+            logger.warning("Could not read %s: %s", path.name, e)
+            return {}
 
     @staticmethod
     def _focused_window_classes() -> list[str]:
