@@ -192,7 +192,16 @@ class OverlayButton:
     # -- edge tucking -------------------------------------------------------
 
     def _monitor_geometry(self):
-        if not self._window or self._x is None:
+        """Geometry of the monitor holding the button, or None if it is
+        not on any of them.
+
+        Returning None rather than silently falling back matters: a saved
+        position becomes stale whenever the layout changes (a display
+        unplugged, or the same screens re-arranged after a reboot), and
+        computing an edge against the wrong monitor puts the button
+        somewhere the user never left it.
+        """
+        if not self._window or self._x is None or self._y is None:
             return None
         display = self._window.get_display()
         if display is None:
@@ -205,7 +214,7 @@ class OverlayButton:
                 and geo.y <= self._y < geo.y + geo.height
             ):
                 return geo
-        return monitors.get_item(0).get_geometry() if monitors else None
+        return None
 
     def _update_edge(self) -> None:
         """Flush the position to the nearest side edge when close to one."""
@@ -331,9 +340,27 @@ class OverlayButton:
 
         if self._x is None or self._y is None:
             self._default_position()
+        elif self._monitor_geometry() is None:
+            logger.info(
+                "Saved PTT position (%s, %s) is off every monitor; "
+                "falling back to the default spot",
+                self._x, self._y,
+            )
+            self._edge = None
+            self._default_position()
+        self._clamp_to_monitor()
         self._update_edge()
         self._apply_position(tucked=not self._recording)
         return GLib.SOURCE_REMOVE
+
+    def _clamp_to_monitor(self) -> None:
+        """Keep the whole button inside its monitor's work area."""
+        geo = self._monitor_geometry()
+        if geo is None or self._x is None or self._y is None:
+            return
+        size = PTT_BUTTON_SIZE + 4
+        self._x = max(geo.x, min(self._x, geo.x + geo.width - size))
+        self._y = max(geo.y, min(self._y, geo.y + geo.height - size))
 
     def hide(self) -> None:
         if self._window:
