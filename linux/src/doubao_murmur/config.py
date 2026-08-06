@@ -160,3 +160,11 @@ def load_backend_config() -> dict:
             "Could not read %s (%s); using the doubao backend", path.name, e
         )
         return {"backend": "doubao"}
+
+
+GLOSSARY_FILE = "glossary.json"
+
+
+def get_glossary_path() -> Path:
+    """Path to the learned transcription vocabulary."""
+    return get_config_dir() / GLOSSARY_FILE

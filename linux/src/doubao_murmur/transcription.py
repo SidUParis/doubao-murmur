@@ -112,6 +112,7 @@ class TranscriptionManager:
             return
 
         logger.info("Starting recording...")
+        self._harvest_clipboard()
         self._set_state(RecordingState.STARTING)
         self.app_state.transcription_text = ""
         self.app_state.error_message = None
@@ -149,6 +150,41 @@ class TranscriptionManager:
             GLib.timeout_add(
                 int(AUTH_EXPIRY_DELAY * 1000), self._reset_to_idle
             )
+
+    def _harvest_clipboard(self) -> None:
+        """Fold whatever is on the clipboard into the vocabulary hints.
+
+        Sampled here rather than on a timer so the app only ever reads the
+        clipboard in response to the user starting a dictation, and reads
+        it early enough that the request built at stop time already has
+        the updated terms.
+        """
+        settings = load_backend_config()
+        options = settings.get("auto_glossary") or {}
+        if not options.get("enabled"):
+            return
+        try:
+            from gi.repository import Gdk
+
+            from doubao_murmur.glossary import shared_glossary
+
+            display = Gdk.Display.get_default()
+            if display is None:
+                return
+            glossary = shared_glossary(int(options.get("max_terms") or 48))
+
+            def on_text(clipboard, result):
+                try:
+                    text = clipboard.read_text_finish(result)
+                except Exception:
+                    return
+                added = glossary.harvest(text or "")
+                if added:
+                    logger.info("Glossary: %d term(s) from clipboard", added)
+
+            display.get_clipboard().read_text_async(None, on_text)
+        except Exception as e:
+            logger.warning("Clipboard harvest skipped: %s", e)
 
     def _stop_recording(self) -> None:
         logger.info("Stopping recording...")

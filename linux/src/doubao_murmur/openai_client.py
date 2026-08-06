@@ -126,6 +126,9 @@ class OpenAIASRClient:
         self._prompt = settings.get("prompt") or None
         self._language = settings.get("language") or None
         self._bitrate_k = int(settings.get("upload_bitrate_kbps") or 16)
+        glossary_opts = settings.get("auto_glossary") or {}
+        self._auto_glossary = bool(glossary_opts.get("enabled"))
+        self._glossary_max = int(glossary_opts.get("max_terms") or 48)
 
         self._chunks: list[bytes] = []
         self._lock = threading.Lock()
@@ -200,10 +203,22 @@ class OpenAIASRClient:
 
     # -- worker -------------------------------------------------------------
 
+    def _prompt_for_request(self) -> str | None:
+        """Hand-written prompt, plus clipboard-learned terms if enabled."""
+        if not self._auto_glossary:
+            return self._prompt
+        try:
+            from doubao_murmur.glossary import shared_glossary
+
+            return shared_glossary(self._glossary_max).build_prompt(self._prompt)
+        except Exception as e:
+            logger.warning("Glossary unavailable (%s); using base prompt", e)
+            return self._prompt
+
     def _transcribe(self, pcm: bytes, generation: int) -> None:
         fields = {
             "model": self._model,
-            "prompt": self._prompt,
+            "prompt": self._prompt_for_request(),
             "language": self._language,
             "response_format": "json",
         }
