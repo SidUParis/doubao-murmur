@@ -20,7 +20,10 @@ from doubao_murmur.hotkey.overlay_button import OverlayButton
 from doubao_murmur.keyboard.keyboard_window import KeyboardWindow
 from doubao_murmur.params_store import ParamsStore
 from doubao_murmur.paste.paste_helper import PasteHelper
-from doubao_murmur.transcription import TranscriptionManager
+from doubao_murmur.transcription import (
+    TranscriptionManager,
+    backend_needs_doubao_login,
+)
 from doubao_murmur.ui.login_window import LoginWindow
 from doubao_murmur.ui.overlay import Overlay
 from doubao_murmur.ui.tray_icon import TrayIcon
@@ -60,8 +63,13 @@ class DoubaoMurmurApp(Gtk.Application):
         self._setup_components()
 
     def _setup_components(self) -> None:
-        # 1. Check for cached params
-        if ParamsStore.has_saved():
+        # 1. Establish login state. A backend that carries its own
+        # credentials never needs the doubao WebView, so treat it as
+        # logged in and keep the tray/PTT button usable.
+        if not backend_needs_doubao_login():
+            self.app_state.login_status = LoginStatus.LOGGED_IN
+            logger.info("Non-doubao backend configured; skipping login")
+        elif ParamsStore.has_saved():
             self.app_state.login_status = LoginStatus.LOGGED_IN
             logger.info("Cached params found, skipping WebView")
         else:

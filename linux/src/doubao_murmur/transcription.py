@@ -17,10 +17,37 @@ from gi.repository import GLib
 from doubao_murmur.app_state import AppState, LoginStatus, RecordingState
 from doubao_murmur.asr_client import ASRClient
 from doubao_murmur.audio_capture import AudioCapture
-from doubao_murmur.config import AUTH_EXPIRY_DELAY, STOP_SAFETY_TIMEOUT
+from doubao_murmur.config import (
+    AUTH_EXPIRY_DELAY,
+    STOP_SAFETY_TIMEOUT,
+    load_backend_config,
+)
 from doubao_murmur.params_store import ASRParams, ParamsStore
 
 logger = logging.getLogger(__name__)
+
+
+def _build_asr_client():
+    """Pick the transcription backend named in backend.json."""
+    settings = load_backend_config()
+    name = str(settings.get("backend", "doubao")).lower()
+    if name == "openai":
+        from doubao_murmur.openai_client import OpenAIASRClient
+
+        logger.info(
+            "Transcription backend: openai (%s)",
+            settings.get("model") or "openai/whisper-1",
+        )
+        return OpenAIASRClient(settings)
+    if name != "doubao":
+        logger.warning("Unknown backend %r; using doubao", name)
+    logger.info("Transcription backend: doubao")
+    return ASRClient()
+
+
+def backend_needs_doubao_login() -> bool:
+    """Whether the configured backend authenticates through doubao.com."""
+    return str(load_backend_config().get("backend", "doubao")).lower() == "doubao"
 
 
 class TranscriptionManager:
@@ -28,7 +55,7 @@ class TranscriptionManager:
 
     def __init__(self, app_state: AppState) -> None:
         self.app_state = app_state
-        self.asr_client = ASRClient()
+        self.asr_client = _build_asr_client()
         self.audio_capture = AudioCapture()
 
         self.using_cached_params = False
@@ -75,7 +102,10 @@ class TranscriptionManager:
         # STOPPING: ignore
 
     def _start_recording(self) -> None:
-        if self.app_state.login_status != LoginStatus.LOGGED_IN:
+        if (
+            backend_needs_doubao_login()
+            and self.app_state.login_status != LoginStatus.LOGGED_IN
+        ):
             logger.warning("Not logged in, showing login window")
             if self.on_show_login:
                 self.on_show_login()
@@ -97,6 +127,12 @@ class TranscriptionManager:
             GLib.timeout_add(
                 int(AUTH_EXPIRY_DELAY * 1000), self._reset_to_idle
             )
+            return
+
+        # Backends that carry their own credentials need no doubao params.
+        if not backend_needs_doubao_login():
+            self.using_cached_params = False
+            self.asr_client.connect(None)
             return
 
         # Try cached params first, fall back to WebView extraction
@@ -151,6 +187,17 @@ class TranscriptionManager:
             self._set_state(RecordingState.RECORDING)
 
         if not self.awaiting_final_result:
+            return GLib.SOURCE_REMOVE
+
+        # A batch backend sends exactly one result, which is already final;
+        # waiting for a second frame to match would just burn the safety
+        # timeout before pasting.
+        if not getattr(self.asr_client, "is_streaming", True):
+            self.awaiting_final_result = False
+            if self.safety_timer_id:
+                GLib.source_remove(self.safety_timer_id)
+                self.safety_timer_id = None
+            self._complete_transcription()
             return GLib.SOURCE_REMOVE
 
         # Results are cumulative rewrites and keep being corrected after

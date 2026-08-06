@@ -111,3 +111,52 @@ WEBVIEW_USER_AGENT = (
 def get_paste_overrides_path() -> Path:
     """Path to the per-WM_CLASS paste-keystroke override file."""
     return get_config_dir() / PASTE_OVERRIDES_FILE
+
+
+# --- Transcription backend ---
+
+BACKEND_FILE = "backend.json"
+
+# Batch backends upload the whole utterance once the user stops, so a
+# 30 s dictation still returns in ~2.8 s (whisper-1, measured) rather
+# than scaling with its length. Give the request room beyond that.
+BACKEND_REQUEST_TIMEOUT = 120.0
+
+
+def get_backend_config_path() -> Path:
+    """Path to the transcription backend config file."""
+    return get_config_dir() / BACKEND_FILE
+
+
+def load_backend_config() -> dict:
+    """Read backend.json, falling back to the built-in doubao backend.
+
+    Shape:
+        {"backend": "doubao" | "openai",
+         "base_url": "...", "api_key": "...",
+         "model": "openai/whisper-1",
+         "prompt": "术语表: xdotool, flatpak, ...",
+         "language": "zh"}
+
+    `prompt` biases recognition toward names the model would otherwise
+    mangle (measured: localStorage/AltGr/Codex all recovered), which is
+    the main reason to prefer a batch backend over streaming doubao.
+    """
+    import json
+
+    path = get_backend_config_path()
+    if not path.exists():
+        return {"backend": "doubao"}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("backend.json must contain an object")
+        data.setdefault("backend", "doubao")
+        return data
+    except Exception as e:  # never let a typo here stop dictation
+        import logging
+
+        logging.getLogger(__name__).error(
+            "Could not read %s (%s); using the doubao backend", path.name, e
+        )
+        return {"backend": "doubao"}
