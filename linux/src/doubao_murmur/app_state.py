@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from gi.repository import GLib, GObject
+from gi.repository import GObject
 
 
 class LoginStatus(Enum):

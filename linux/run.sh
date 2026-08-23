@@ -1,5 +1,5 @@
 #!/bin/bash
-# Development launch script for Doubao Murmur on Linux.
+# Development launch script for Open Voice Input Linux.
 # Usage: ./run.sh
 
 set -e
@@ -10,5 +10,5 @@ cd "$SCRIPT_DIR"
 # Add src to PYTHONPATH
 export PYTHONPATH="$SCRIPT_DIR/src:$PYTHONPATH"
 
-echo "🎤 Starting Doubao Murmur (Linux)..."
+echo "🎤 Starting Open Voice Input Linux..."
 python3 -m doubao_murmur "$@"

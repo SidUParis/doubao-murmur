@@ -63,6 +63,14 @@ _PTT_CSS = ("""
     background: rgba(200, 40, 40, 0.85);
     border-color: rgba(255, 100, 100, 0.6);
 }
+.ptt-button.finalizing {
+    background: rgba(165, 105, 20, 0.92);
+    border-color: rgba(255, 205, 90, 0.75);
+}
+.ptt-button.error {
+    background: rgba(155, 45, 45, 0.95);
+    border-color: rgba(255, 150, 150, 0.8);
+}
 """ % {
     "size": PTT_BUTTON_SIZE,
     "radius": PTT_BUTTON_SIZE // 2 + 2,
@@ -85,6 +93,8 @@ class OverlayButton:
         self._x: int | None = None
         self._y: int | None = None
         self._edge: str | None = None  # "left" | "right" | None
+        self._state = "idle"
+        self._error_message = ""
         self._recording = False
         self._dragging = False
         self._anchor_pointer: tuple[int, int] | None = None
@@ -95,15 +105,19 @@ class OverlayButton:
     def create(self) -> None:
         """Create the GTK window and button."""
         self._window = Gtk.Window()
-        self._window.set_title("Doubao Murmur PTT")
+        self._window.set_title("Open Voice Input Linux PTT")
         self._window.set_decorated(False)
         self._window.set_default_size(PTT_BUTTON_SIZE + 4, PTT_BUTTON_SIZE + 4)
         self._window.set_resizable(False)
+        self._window.set_focusable(False)
+        self._window.set_can_focus(False)
         self._window.add_css_class("ptt-window")
         apply_overlay_window_hints(self._window, OverlayRole.PTT)
 
         # Create circular button
         self._button = Gtk.Button()
+        self._button.set_focusable(False)
+        self._button.set_can_focus(False)
         self._button.add_css_class("ptt-button")
         self._button.set_label("\U0001f3a4")  # 🎤
         self._button.connect("clicked", self._on_clicked)
@@ -366,16 +380,56 @@ class OverlayButton:
         if self._window:
             self._window.set_visible(False)
 
-    def set_recording_state(self, is_recording: bool) -> None:
-        """Update button visual state."""
-        self._recording = is_recording
-        if self._button:
-            if is_recording:
-                self._button.add_css_class("recording")
-                self._button.set_label("⏹")  # ⏹
-            else:
-                self._button.remove_css_class("recording")
-                self._button.set_label("\U0001f3a4")  # 🎤
+    def set_state(self, state: str) -> None:
+        """Show idle, recording, and second-pass states without text UI."""
+        self._state = state
+        self._recording = state != "idle"
+        if self._recording:
+            self._error_message = ""
+        self._refresh_visual()
         # Never leave the button half off-screen while it is the only
         # visible sign that dictation is live.
-        self._apply_position(tucked=not is_recording)
+        self._apply_position(tucked=not self._recording)
+
+    def set_recording_state(self, is_recording: bool) -> None:
+        """Compatibility wrapper for older callers."""
+        self.set_state("recording" if is_recording else "idle")
+
+    def set_error(self, message: str) -> None:
+        self._error_message = message
+        self._recording = False
+        self._refresh_visual()
+        self._apply_position(tucked=False)
+
+    def clear_error(self) -> None:
+        self._error_message = ""
+        self._recording = self._state != "idle"
+        self._refresh_visual()
+        self._apply_position(tucked=not self._recording)
+
+    def _refresh_visual(self) -> None:
+        if not self._button:
+            return
+        for css_class in ("recording", "finalizing", "error"):
+            self._button.remove_css_class(css_class)
+
+        if self._error_message:
+            self._button.add_css_class("error")
+            self._button.set_label("⚠")
+            tooltip = self._error_message
+        elif self._state == "starting":
+            self._button.add_css_class("recording")
+            self._button.set_label("…")
+            tooltip = "正在启动语音识别"
+        elif self._state == "recording":
+            self._button.add_css_class("recording")
+            self._button.set_label("⏹")
+            tooltip = "正在录音；点击停止"
+        elif self._state == "stopping":
+            self._button.add_css_class("finalizing")
+            self._button.set_label("✨")
+            tooltip = "正在进行二遍识别与文本规整"
+        else:
+            self._button.set_label("\U0001f3a4")
+            tooltip = "点击开始语音输入"
+        self._button.set_tooltip_text(tooltip)

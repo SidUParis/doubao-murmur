@@ -27,6 +27,9 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.portal.Desktop
   - --talk-name=org.freedesktop.Flatpak
+  # Host IBus prototype: partial/final text stays on this private session-bus
+  # method channel and is committed by the focused input context.
+  - --talk-name=org.murmur.IME.Preedit1
 
   # System tray (StatusNotifierItem registration with KDE/compatible trays)
   - --talk-name=org.kde.StatusNotifierWatcher

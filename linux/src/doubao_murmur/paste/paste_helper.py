@@ -10,8 +10,9 @@ Methods (in priority order):
 
 from __future__ import annotations
 
-import logging
+from dataclasses import dataclass
 import json
+import logging
 import subprocess
 import time
 
@@ -50,25 +51,85 @@ _TERMINAL_WM_CLASSES = {
 }
 
 
+@dataclass(frozen=True)
+class PasteTarget:
+    """Window-level focus identity captured when dictation starts.
+
+    ``None`` means the platform cannot verify the active window. Passing such
+    a target deliberately degrades to clipboard-only instead of guessing.
+    """
+
+    window_id: str | None
+
+
 class PasteHelper:
     """Copy text to clipboard and simulate paste keystroke."""
 
     @staticmethod
-    def copy_and_paste(text: str) -> None:
+    def copy_and_paste(
+        text: str, *, target: PasteTarget | None = None
+    ) -> bool:
         if not text:
-            return
-        PasteHelper._copy_to_clipboard(text)
+            return False
+        if target is not None and not PasteHelper._target_matches(target):
+            PasteHelper._copy_to_clipboard(text)
+            logger.warning(
+                "Paste target unavailable or changed; copied without pasting"
+            )
+            return False
+        if not PasteHelper._copy_to_clipboard(text):
+            # Never inject Ctrl+V after a failed copy: doing so would paste
+            # whatever unrelated value was already in the user's clipboard.
+            logger.error("Clipboard update failed; skipped key injection")
+            return False
         time.sleep(PASTE_DELAY)
-        PasteHelper._simulate_paste()
+        # Re-check after the clipboard write and delay to close the most common
+        # focus-change race immediately before synthetic key injection.
+        if target is not None and not PasteHelper._target_matches(target):
+            logger.warning(
+                "Paste target changed after copy; skipped key injection"
+            )
+            return False
+        return PasteHelper._simulate_paste()
 
     @staticmethod
-    def copy_only(text: str) -> None:
+    def capture_target() -> PasteTarget:
+        """Capture the current X11 target, or an unverifiable safe target."""
+        return PasteTarget(PasteHelper._focused_window_id())
+
+    @staticmethod
+    def _target_matches(target: PasteTarget) -> bool:
+        return (
+            target.window_id is not None
+            and PasteHelper._focused_window_id() == target.window_id
+        )
+
+    @staticmethod
+    def _focused_window_id() -> str | None:
+        """Return a normalized X11 active-window ID when it is available."""
+        for command in command_candidates("xdotool"):
+            try:
+                result = subprocess.run(
+                    command + ["getactivewindow"],
+                    capture_output=True,
+                    check=True,
+                    timeout=3,
+                )
+                window_id = int(result.stdout.decode().strip(), 0)
+                if window_id > 0:
+                    return str(window_id)
+            except Exception as e:
+                logger.debug("Active window ID detection failed: %s", e)
+        return None
+
+    @staticmethod
+    def copy_only(text: str) -> bool:
         if not text:
-            return
-        PasteHelper._copy_to_clipboard(text)
+            return False
+        return PasteHelper._copy_to_clipboard(text)
 
     @staticmethod
-    def _copy_to_clipboard(text: str) -> None:
+    def _copy_to_clipboard(text: str) -> bool:
         """Copy text to system clipboard."""
         # Try Wayland first
         for command in command_candidates("wl-copy"):
@@ -80,7 +141,7 @@ class PasteHelper:
                     timeout=3,
                 )
                 logger.info("Copied to clipboard via wl-copy")
-                return
+                return True
             except Exception as e:
                 logger.warning("wl-copy failed: %s", e)
 
@@ -94,7 +155,7 @@ class PasteHelper:
                     timeout=3,
                 )
                 logger.info("Copied to clipboard via xclip")
-                return
+                return True
             except Exception as e:
                 logger.warning("xclip failed: %s", e)
 
@@ -108,7 +169,7 @@ class PasteHelper:
                     timeout=3,
                 )
                 logger.info("Copied to clipboard via xsel")
-                return
+                return True
             except Exception as e:
                 logger.warning("xsel failed: %s", e)
 
@@ -121,11 +182,13 @@ class PasteHelper:
                 clipboard = display.get_clipboard()
                 clipboard.set(text)
                 logger.info("Copied to clipboard via GTK")
+                return True
         except Exception as e:
             logger.error("All clipboard methods failed: %s", e)
+        return False
 
     @staticmethod
-    def _simulate_paste() -> None:
+    def _simulate_paste() -> bool:
         """Simulate the paste keystroke for the focused window.
 
         Terminals use Ctrl+Shift+V; everything else uses Ctrl+V.
@@ -146,7 +209,7 @@ class PasteHelper:
                     timeout=3,
                 )
                 logger.info("Paste simulated via ydotool")
-                return
+                return True
             except Exception as e:
                 logger.warning("ydotool failed: %s", e)
 
@@ -164,7 +227,7 @@ class PasteHelper:
                     timeout=3,
                 )
                 logger.info("Paste simulated via wtype")
-                return
+                return True
             except Exception as e:
                 logger.warning("wtype failed: %s", e)
 
@@ -178,7 +241,7 @@ class PasteHelper:
                     timeout=3,
                 )
                 logger.info("Paste simulated via xdotool (%s)", xdotool_key)
-                return
+                return True
             except Exception as e:
                 logger.warning("xdotool failed: %s", e)
 
@@ -187,6 +250,7 @@ class PasteHelper:
             "Text was copied to clipboard but could not auto-paste. "
             "Install ydotool or wtype for auto-paste."
         )
+        return False
 
     @staticmethod
     def _paste_needs_shift() -> bool:

@@ -126,7 +126,7 @@ class LoginWindow:
 
         # Create window
         self._window = Gtk.Window()
-        self._window.set_title("Doubao Murmur - 登录")
+        self._window.set_title("Open Voice Input Linux - 豆包登录")
         self._window.set_default_size(1280, 800)
         self._window.set_child(self._webview)
         self._window.connect("close-request", self._on_close_request)

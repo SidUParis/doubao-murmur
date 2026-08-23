@@ -6,11 +6,14 @@ Location: $XDG_CONFIG_HOME/doubao-murmur/asr_params.json
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import asdict, dataclass
 
-from doubao_murmur.config import get_params_path
+from doubao_murmur.config import (
+    _atomic_write_json,
+    _harden_private_json_path,
+    get_params_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,22 +38,55 @@ class ParamsStore:
     @staticmethod
     def save(params: ASRParams) -> None:
         try:
-            data = json.dumps(asdict(params), ensure_ascii=False, indent=2)
-            get_params_path().write_text(data, encoding="utf-8")
-            logger.info("Saved ASR params to %s", get_params_path())
-        except Exception as e:
-            logger.error("Failed to save params: %s", e)
+            _atomic_write_json(get_params_path(), asdict(params), mode=0o600)
+            logger.info("Saved private ASR params")
+        except Exception as error:
+            logger.error(
+                "Failed to save ASR params (%s)", error.__class__.__name__
+            )
 
     @staticmethod
     def load() -> ASRParams | None:
         path = get_params_path()
         if not path.exists():
             return None
+        if not _harden_private_json_path(path):
+            logger.error("Refusing unsafe ASR params path")
+            return None
         try:
+            import json
+
             data = json.loads(path.read_text(encoding="utf-8"))
-            return ASRParams(**data)
-        except Exception as e:
-            logger.error("Failed to load params: %s", e)
+            if not isinstance(data, dict) or set(data) != {
+                "cookies",
+                "device_id",
+                "web_id",
+            }:
+                raise ValueError("invalid ASR params shape")
+            cookies = data["cookies"]
+            device_id = data["device_id"]
+            web_id = data["web_id"]
+            if (
+                not isinstance(cookies, dict)
+                or not isinstance(device_id, str)
+                or not isinstance(web_id, str)
+                or any(
+                    not isinstance(key, str)
+                    or not isinstance(value, str)
+                    or any(character in key or character in value for character in "\r\n")
+                    for key, value in cookies.items()
+                )
+            ):
+                raise ValueError("invalid ASR params values")
+            return ASRParams(
+                cookies=cookies,
+                device_id=device_id,
+                web_id=web_id,
+            )
+        except Exception as error:
+            logger.error(
+                "Failed to load ASR params (%s)", error.__class__.__name__
+            )
             return None
 
     @staticmethod
@@ -58,9 +94,12 @@ class ParamsStore:
         try:
             get_params_path().unlink(missing_ok=True)
             logger.info("Cleared saved params")
-        except Exception as e:
-            logger.error("Failed to clear params: %s", e)
+        except Exception as error:
+            logger.error(
+                "Failed to clear ASR params (%s)", error.__class__.__name__
+            )
 
     @staticmethod
     def has_saved() -> bool:
-        return get_params_path().exists()
+        path = get_params_path()
+        return path.exists() and _harden_private_json_path(path)

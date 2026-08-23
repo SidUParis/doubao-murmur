@@ -4,13 +4,14 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "doubao-murmur"
-version = "1.4.5"
-description = "Voice-to-text input using Doubao ASR for SteamOS/Linux"
+version = "1.5.0"
+description = "Lightweight inline voice input for Linux with IBus preedit"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
     { name = "lilong7676" },
+    { name = "SidUParis" },
 ]
 
 dependencies = [
@@ -27,6 +28,10 @@ dev = [
 
 [project.scripts]
 doubao-murmur = "doubao_murmur.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/SidUParis/openVoiceInput_linux"
+Repository = "https://github.com/SidUParis/openVoiceInput_linux"
 
 [tool.setuptools.packages.find]
 where = ["src"]

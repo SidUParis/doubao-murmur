@@ -20,11 +20,14 @@ can be pinned or blocked there by hand.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 
-from doubao_murmur.config import get_glossary_path
+from doubao_murmur.config import (
+    _atomic_write_json,
+    _harden_private_json_path,
+    get_glossary_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,43 +121,49 @@ class Glossary:
         path = get_glossary_path()
         if not path.exists():
             return
+        if not _harden_private_json_path(path):
+            logger.warning("Refusing unsafe glossary.json path")
+            return
         try:
+            import json
+
             data = json.loads(path.read_text(encoding="utf-8"))
             self.pinned = [str(t) for t in data.get("pinned", [])]
             self.blocked = {str(t).lower() for t in data.get("blocked", [])}
             self.learned = {
                 str(k): int(v) for k, v in (data.get("learned") or {}).items()
             }
-        except Exception as e:
-            logger.warning("Could not read glossary.json: %s", e)
+        except Exception as error:
+            logger.warning(
+                "Could not read glossary.json (%s)", error.__class__.__name__
+            )
 
     def save(self) -> None:
         if not self._dirty:
             return
         try:
-            get_glossary_path().write_text(
-                json.dumps(
-                    {
-                        "_comment": "Edit 'pinned' to force terms in and "
-                                    "'blocked' to keep them out; 'learned' "
-                                    "is rebuilt from clipboard usage.",
-                        "pinned": self.pinned,
-                        "blocked": sorted(self.blocked),
-                        "learned": dict(
-                            sorted(
-                                self.learned.items(),
-                                key=lambda kv: (-kv[1], kv[0]),
-                            )
-                        ),
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
+            _atomic_write_json(
+                get_glossary_path(),
+                {
+                    "_comment": "Edit 'pinned' to force terms in and "
+                    "'blocked' to keep them out; 'learned' "
+                    "is rebuilt from clipboard usage.",
+                    "pinned": self.pinned,
+                    "blocked": sorted(self.blocked),
+                    "learned": dict(
+                        sorted(
+                            self.learned.items(),
+                            key=lambda kv: (-kv[1], kv[0]),
+                        )
+                    ),
+                },
+                mode=0o600,
             )
             self._dirty = False
-        except Exception as e:
-            logger.warning("Could not write glossary.json: %s", e)
+        except Exception as error:
+            logger.warning(
+                "Could not write glossary.json (%s)", error.__class__.__name__
+            )
 
     def harvest(self, text: str) -> int:
         """Fold clipboard text into the counts. Returns terms accepted."""

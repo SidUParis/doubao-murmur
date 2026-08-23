@@ -60,7 +60,7 @@ class Overlay:
 
     def _create_window(self) -> None:
         self._window = Gtk.Window()
-        self._window.set_title("Doubao Murmur")
+        self._window.set_title("Open Voice Input Linux")
         self._window.set_decorated(False)
         self._window.set_default_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
         self._window.set_resizable(False)
@@ -187,5 +187,5 @@ class Overlay:
         return {
             RecordingState.STARTING: "正在启动语音识别...",
             RecordingState.RECORDING: "正在聆听...",
-            RecordingState.STOPPING: "正在处理...",
+            RecordingState.STOPPING: "正在进行二遍识别与语义顺滑...",
         }.get(state, "")

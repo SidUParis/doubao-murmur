@@ -116,6 +116,22 @@ class TestMessageParsing:
         client._handle_message(msg)
         assert auth_errors == [True]
 
+    def test_auth_error_message_content_is_not_logged(self, client, caplog):
+        secret = "credential-content-must-not-enter-logs"
+        client.on_auth_error = lambda: None
+
+        client._handle_message(
+            json.dumps(
+                {
+                    "code": 709599054,
+                    "event": "",
+                    "message": f"session unauthorized {secret}",
+                }
+            )
+        )
+
+        assert secret not in caplog.text
+
     def test_non_auth_error_ignored(self, client):
         errors = []
         client.on_error = lambda e: errors.append(e)

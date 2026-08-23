@@ -2,13 +2,8 @@
 
 import json
 import os
-import tempfile
-from pathlib import Path
 
 import pytest
-
-# Patch config before importing params_store
-import doubao_murmur.config as config
 
 
 @pytest.fixture(autouse=True)
@@ -32,6 +27,11 @@ def test_save_and_load():
     assert loaded.cookies == params.cookies
     assert loaded.device_id == "dev_001"
     assert loaded.web_id == "web_002"
+
+    from doubao_murmur.config import get_config_dir, get_params_path
+
+    assert os.stat(get_config_dir()).st_mode & 0o777 == 0o700
+    assert os.stat(get_params_path()).st_mode & 0o777 == 0o600
 
 
 def test_cookie_header():
@@ -75,3 +75,33 @@ def test_has_saved():
 
     ParamsStore.save(ASRParams(cookies={"a": "1"}, device_id="d", web_id="w"))
     assert ParamsStore.has_saved()
+
+
+def test_load_hardens_legacy_world_readable_file():
+    from doubao_murmur.config import get_config_dir, get_params_path
+    from doubao_murmur.params_store import ParamsStore
+
+    path = get_params_path()
+    path.write_text(
+        json.dumps({"cookies": {"a": "1"}, "device_id": "d", "web_id": "w"}),
+        encoding="utf-8",
+    )
+    os.chmod(get_config_dir(), 0o755)
+    os.chmod(path, 0o644)
+
+    assert ParamsStore.load() is not None
+    assert os.stat(get_config_dir()).st_mode & 0o777 == 0o700
+    assert os.stat(path).st_mode & 0o777 == 0o600
+
+
+def test_load_refuses_symlink(tmp_path):
+    from doubao_murmur.config import get_params_path
+    from doubao_murmur.params_store import ParamsStore
+
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    path = get_params_path()
+    path.symlink_to(outside)
+
+    assert ParamsStore.load() is None
+    assert not ParamsStore.has_saved()

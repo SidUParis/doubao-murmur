@@ -1,4 +1,4 @@
-"""Entry point for Doubao Murmur Linux."""
+"""Entry point for Open Voice Input Linux."""
 
 import logging
 import sys

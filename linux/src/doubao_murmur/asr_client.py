@@ -105,18 +105,22 @@ class ASRClient:
                 async for message in ws:
                     self._handle_message(message)
 
-        except Exception as e:
-            if _is_connection_closed_error(e):
-                logger.warning("WebSocket closed: %s", e)
+        except Exception as error:
+            if _is_connection_closed_error(error):
+                logger.warning(
+                    "WebSocket closed (%s)", error.__class__.__name__
+                )
                 if self._connected:
                     self._connected = False
                     if self.on_error:
-                        self.on_error(e)
+                        self.on_error(error)
             else:
-                logger.error("WebSocket error: %s", e)
+                logger.error(
+                    "WebSocket error (%s)", error.__class__.__name__
+                )
                 self._connected = False
                 if self.on_error:
-                    self.on_error(e)
+                    self.on_error(error)
 
     def _build_url(self, params: ASRParams) -> str:
         """Construct the full WSS URL with query parameters."""
@@ -189,9 +193,7 @@ class ASRClient:
             if code == AUTH_ERROR_CODE or any(
                 kw in lower_msg for kw in AUTH_ERROR_KEYWORDS
             ):
-                logger.warning(
-                    "Auth error detected: code=%d, message=%s", code, msg
-                )
+                logger.warning("Auth error detected: code=%d", code)
                 self._connected = False
                 if self.on_auth_error:
                     self.on_auth_error()

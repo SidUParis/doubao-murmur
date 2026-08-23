@@ -221,7 +221,7 @@ class KeyboardWindow:
     def _build(self) -> None:
         _install_css()
         self._window = Gtk.Window()
-        self._window.set_title("Doubao Murmur Keyboard")
+        self._window.set_title("Open Voice Input Linux Keyboard")
         self._window.set_decorated(False)
         self._window.set_resizable(True)
         # Belt-and-suspenders against focus theft on tap (the X11 input hint

@@ -86,11 +86,11 @@ WSS 连接的认证通过浏览器自动携带的 `.doubao.com` 域 cookie 完�
 
 | Cookie | 示例值 | 说明 |
 |--------|--------|------|
-| `sessionid` | `4ff1753345ceacf7b4f378da7b377373` | **核心会话 ID**，httpOnly |
+| `sessionid` | `YOUR_REDACTED_TOKEN` | **核心会话 ID**，httpOnly |
 | `sessionid_ss` | 同 sessionid | 同上（SS 变体） |
 | `sid_tt` | 同 sessionid | TT 平台会话 ID |
 | `sid_guard` | `{sessionid}\|{timestamp}\|{ttl}\|{expiry}` | 会话守卫，含过期时间 |
-| `uid_tt` | `1c70553df6fbd3bd812d9a5316f19bb6` | 用户 ID token |
+| `uid_tt` | `YOUR_REDACTED_TOKEN` | 用户 ID token |
 | `uid_tt_ss` | 同 uid_tt | 同上（SS 变体） |
 | `odin_tt` | (128字符hex) | Odin 认证 token |
 | `sid_ucp_v1` | base64 编码 | UCP 会话 token |

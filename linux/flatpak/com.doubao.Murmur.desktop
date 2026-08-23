@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Doubao Murmur
-Name[zh_CN]=豆包语音输入
-Comment=Voice-to-text input using Doubao ASR
-Comment[zh_CN]=使用豆包语音识别的语音输入工具
+Name=Open Voice Input Linux
+Name[zh_CN]=Open Voice Input Linux 语音输入
+Comment=Lightweight inline voice input for Linux
+Comment[zh_CN]=轻量的 Linux 光标内实时语音输入
 Exec=doubao-murmur
 Icon=com.doubao.Murmur
 Type=Application

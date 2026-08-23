@@ -1,64 +1,25 @@
 #!/bin/bash
-# setup-permissions.sh - Post-install permission setup for Doubao Murmur
-# Run on host after Flatpak install for full functionality.
+# setup-permissions.sh - Post-install permission setup for Open Voice Input Linux
+# Optional read-only permission check for the compatibility Flatpak.
 
-set -e
+set -euo pipefail
 
-echo "=== Doubao Murmur Permission Setup ==="
+echo "=== Open Voice Input Linux Permission Setup ==="
 echo ""
 
-# 1. Add user to input group (for evdev and ydotool)
-if ! groups | grep -q input; then
-    echo "[1/3] Adding user to 'input' group..."
-    sudo usermod -aG input "$USER"
-    echo "  -> You must log out and back in for this to take effect."
+if flatpak info com.doubao.Murmur >/dev/null 2>&1; then
+    flatpak info --show-permissions com.doubao.Murmur
 else
-    echo "[1/3] User already in 'input' group. OK"
+    echo "The compatibility Flatpak is not installed for this user."
 fi
 
-# 2. Enable ydotoold systemd service (for paste simulation)
-if command -v ydotoold &>/dev/null; then
-    echo "[2/3] Enabling ydotoold service..."
-    sudo systemctl enable --now ydotoold
-    echo "  -> ydotoold enabled."
-elif systemctl list-unit-files ydotoold.service &>/dev/null 2>&1; then
-    echo "[2/3] Enabling ydotoold service..."
-    sudo systemctl enable --now ydotoold
-else
-    echo "[2/3] ydotoold not found. Install with: sudo pacman -S ydotool"
-    echo "  -> Auto-paste will not work without ydotool."
-fi
+cat <<'EOF'
 
-# 3. Install recommended packages
-echo ""
-echo "[3/3] Checking recommended packages..."
-MISSING=""
-for pkg in wl-clipboard ydotool; do
-    if ! pacman -Qq "$pkg" &>/dev/null 2>&1; then
-        MISSING="$MISSING $pkg"
-    fi
-done
-if [ -n "$MISSING" ]; then
-    echo "  -> Recommended packages not installed:$MISSING"
-    echo "  -> Install with: sudo pacman -S$MISSING"
-else
-    echo "  -> All recommended packages installed. OK"
-fi
+Inline IBus preedit does not require root access, membership in the input
+group, a system-wide ydotool daemon, or Flatpak --device=all. This script no
+longer grants those broad legacy permissions.
 
-# 4. Grant Flatpak device access (if installed as Flatpak)
-if flatpak list | grep -q com.doubao.Murmur; then
-    echo ""
-    echo "Granting Flatpak device access..."
-    flatpak override --user --device=all com.doubao.Murmur
-    flatpak override --user --socket=wayland com.doubao.Murmur
-    echo "  -> Flatpak permissions updated."
-fi
-
-echo ""
-echo "=== Setup complete ==="
-if ! groups | grep -q input; then
-    echo "IMPORTANT: Please log out and back in for the 'input' group to take effect."
-fi
-echo ""
-echo "Launch with: flatpak run com.doubao.Murmur"
-echo "Or:          cd linux && ./run.sh"
+On X11, the optional final-paste fallback can use a user-installed xdotool.
+It remains clipboard-only when the target window cannot be verified. The
+recommended path is the focus-bound org.murmur.IME.Preedit1 engine.
+EOF

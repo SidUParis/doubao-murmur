@@ -3,27 +3,37 @@
   <id>com.doubao.Murmur</id>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
-  <name>Doubao Murmur</name>
-  <name xml:lang="zh_CN">豆包语音输入</name>
-  <summary>Voice-to-text input using Doubao ASR</summary>
-  <summary xml:lang="zh_CN">使用豆包语音识别的语音输入工具</summary>
+  <name>Open Voice Input Linux</name>
+  <name xml:lang="zh_CN">Open Voice Input Linux 语音输入</name>
+  <summary>Lightweight inline voice input for Linux</summary>
+  <summary xml:lang="zh_CN">轻量的 Linux 光标内实时语音输入</summary>
   <description>
     <p>
-      Doubao Murmur is a voice-to-text input tool that uses Doubao's ASR
-      (Automatic Speech Recognition) service to convert speech to text in
-      real-time. It works as a global overlay with a push-to-talk button,
-      making it easy to dictate text into any application.
+      Open Voice Input Linux is a lightweight voice-to-text input tool with Doubao and
+      Volcengine ASR backends. A small push-to-talk button shows recording and
+      finalization state; the authoritative result is entered directly into
+      the target application without a separate transcription window.
     </p>
     <p xml:lang="zh_CN">
-      豆包语音输入是一款语音转文字工具，使用豆包的 ASR（自动语音识别）服务
-      实时将语音转换为文字。它以全局悬浮窗的形式工作，提供一键录音按钮，
-      可以轻松地将文字输入到任何应用中。
+      Open Voice Input Linux 是一款支持豆包与火山引擎 ASR 的轻量语音转文字工具。
+      小型按钮只显示录音和二遍整理状态，权威结果直接输入目标应用，
+      不再显示单独的黑色转写窗口。
     </p>
   </description>
   <launchable type="desktop-id">com.doubao.Murmur.desktop</launchable>
-  <url type="homepage">https://github.com/lilong7676/doubao-murmur</url>
-  <developer_name>lilong7676</developer_name>
+  <url type="homepage">https://github.com/SidUParis/openVoiceInput_linux</url>
+  <developer id="io.github.siduparis">
+    <name>Open Voice Input Linux contributors</name>
+  </developer>
   <releases>
+    <release version="1.5.0" date="2026-08-24">
+      <description>
+        <p>Add focus-bound live IBus preedit, Volcengine BigModel two-pass ASR,
+           a masked key-only settings flow, explicit personal hotwords, and
+           bounded recording/network buffers. Remove the black transcript
+           window and harden credential persistence and paste fallback.</p>
+      </description>
+    </release>
     <release version="1.4.5" date="2026-06-13">
       <description>
         <p>Auto-paste into the Warp terminal: its window class
