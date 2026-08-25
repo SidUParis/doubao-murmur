@@ -17,7 +17,7 @@ from gi.repository import GLib
 
 from doubao_murmur.app_state import AppState, LoginStatus, RecordingState
 from doubao_murmur.asr_client import ASRClient
-from doubao_murmur.audio_capture import AudioCapture
+from doubao_murmur.audio_capture import AudioCapture, AudioDeviceError
 from doubao_murmur.config import (
     AUTH_EXPIRY_DELAY,
     STOP_SAFETY_TIMEOUT,
@@ -253,8 +253,16 @@ class TranscriptionManager:
         # Start audio immediately (buffered in ASR client until WS connects)
         try:
             self.audio_capture.start(on_audio_data=self.asr_client.send_audio)
-        except Exception as e:
-            logger.error("Audio capture failed: %s", e)
+        except AudioDeviceError as error:
+            # AudioDeviceError messages are deliberately bounded and contain
+            # no captured audio or provider credentials, so the user can see
+            # why automatic routing refused to guess.
+            logger.error("Audio capture failed: %s", error)
+            self.app_state.error_message = f"麦克风不可用：{error}"
+            GLib.timeout_add(int(AUTH_EXPIRY_DELAY * 1000), self._reset_to_idle)
+            return
+        except Exception as error:
+            logger.error("Audio capture failed (%s)", error.__class__.__name__)
             self.app_state.error_message = "麦克风启动失败"
             GLib.timeout_add(int(AUTH_EXPIRY_DELAY * 1000), self._reset_to_idle)
             return

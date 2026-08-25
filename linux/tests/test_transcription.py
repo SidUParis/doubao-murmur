@@ -7,6 +7,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from doubao_murmur.app_state import LoginStatus, RecordingState
+from doubao_murmur.audio_capture import AudioDeviceError
 from doubao_murmur.config import STOP_SAFETY_TIMEOUT
 from doubao_murmur import transcription
 
@@ -142,6 +143,33 @@ def test_successful_recording_start_arms_duration_limit(monkeypatch):
     assert manager.asr_client.connected == [None]
     assert scheduled == [(600_000, manager._recording_limit_timeout, 1)]
     assert manager.recording_limit_timer_id == 81
+
+
+def test_microphone_selection_failure_is_shown_without_connecting(monkeypatch):
+    manager = _bare_manager()
+    manager.app_state.recording_state = RecordingState.IDLE
+    scheduled = []
+    monkeypatch.setattr(manager, "_harvest_clipboard", lambda: None)
+    monkeypatch.setattr(
+        manager.audio_capture,
+        "start",
+        lambda on_audio_data: (_ for _ in ()).throw(
+            AudioDeviceError("检测到多个物理麦克风，无法安全自动选择")
+        ),
+    )
+    monkeypatch.setattr(
+        transcription.GLib,
+        "timeout_add",
+        lambda delay, callback: scheduled.append((delay, callback)) or 82,
+    )
+
+    manager._start_recording()
+
+    assert manager.asr_client.connected == []
+    assert manager.app_state.error_message == (
+        "麦克风不可用：检测到多个物理麦克风，无法安全自动选择"
+    )
+    assert len(scheduled) == 1
 
 
 def test_completion_pastes_final_text_without_overlay():
