@@ -21,6 +21,7 @@ class RecordingState(Enum):
     STARTING = "starting"
     RECORDING = "recording"
     STOPPING = "stopping"
+    OBSERVING = "observing"
 
 
 class AppState(GObject.Object):

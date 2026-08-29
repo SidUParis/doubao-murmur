@@ -1,15 +1,17 @@
 # Doubao Murmur
 
-通过劫持豆包 Web 版的语音识别能力，实现全局语音输入。支持 **macOS** 和 **Linux / SteamOS**（Steam Deck 等掌机）。
+macOS 版本通过豆包 Web 语音能力提供全局输入；Linux / SteamOS 目录现在是公开
+`openVoiceInput_linux` standalone daemon 的兼容控制界面。
 
 - **macOS**：按下右 `⌥ Option` 键开始/停止语音识别，识别结果自动复制到剪贴板并粘贴到当前光标所在的输入框。
-- **Linux / SteamOS**：按下右 `Alt` 键开始/停止；掌机上可在 Steam Input 桌面布局中把任意手柄按键（如 R3/R2）映射为右 Alt，即可**用手柄一键语音输入**。另外还内置了 **SteamOS 桌面模式的触摸软键盘**——可拖动 / 可缩放，并支持**分体**与**左 / 右单手**布局，方便掌机握持时打字。详见 [Linux 版说明](linux/README.md)。
+- **Linux / SteamOS**：兼容 Flatpak 只把右 `Alt`、`ESC` 和悬浮按钮转发给独立
+  daemon，不再自行录音、联网或保存凭证。详见 [Linux 版说明](linux/README.md)。
 
 <p align="center">
   <img src="docs/screenshots/overlay_pannel.png" width="500" alt="语音识别悬浮窗">
 </p>
 
-## 免责声明
+## macOS 版本免责声明
 
 - **本项目仅供个人学习和研究使用**，不得用于任何商业用途。
 - 本项目通过内嵌 WKWebView 加载豆包（doubao.com）网页版来调用其语音识别功能，**并非官方提供的 API 或 SDK**。豆包的页面结构、接口随时可能变化，届时本项目可能无法正常工作。
@@ -18,7 +20,7 @@
 - 使用本项目所产生的一切后果由使用者自行承担，作者不对因使用本项目而导致的任何损失或问题负责。
 - 如果本项目侵犯了相关方的权益，请联系作者删除。
 
-## 核心原理
+## macOS 核心原理
 
 首次使用时，应用通过内嵌 WebView 加载豆包网页版完成登录，提取认证凭证（Cookie、设备标识等）保存到本地后立即销毁 WebView 释放资源。
 
@@ -41,22 +43,25 @@ flatpak install --user doubao-murmur.flatpak
 flatpak run com.doubao.Murmur
 ```
 
-> 安装、手柄按键映射等详细说明见 [Linux 版 README](linux/README.md)
+> 需要先安装并配置公开 `openVoiceInput_linux` standalone 服务。Flatpak 本身没有
+> 麦克风、供应商网络或 API Key 权限；详细说明见 [Linux 版 README](linux/README.md)。
+> Linux 用户不执行下面的 macOS 权限和豆包登录步骤；安装 standalone 服务后，
+> 直接使用右 Alt、ESC 或悬浮按钮。
 
-### 首次使用
+### macOS 首次使用
 
 1. **授予辅助功能权限**：首次启动时，系统会提示授予辅助功能权限（系统设置 → 隐私与安全性 → 辅助功能），这是监听全局快捷键所必需的。
 2. **授予麦克风权限**：首次语音输入时，系统会提示授予麦克风权限。
 3. **登录豆包**：点击菜单栏图标，选择「登录豆包」，在弹出的窗口中完成登录。登录成功后窗口会自动关闭。
 
-### 快捷键
+### macOS 快捷键
 
 | 快捷键 | 功能 |
 |--------|------|
 | 右 `⌥ Option` | 开始 / 停止语音识别 |
 | `ESC` | 取消当前语音识别（不复制、不粘贴） |
 
-### 使用流程
+### macOS 使用流程
 
 <img src="docs/screenshots/menu_bar.png" width="240" alt="菜单栏">
 

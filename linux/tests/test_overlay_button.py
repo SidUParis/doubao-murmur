@@ -47,6 +47,17 @@ def test_stopping_state_uses_finalizing_indicator():
     assert "二遍识别" in indicator._button.tooltip
 
 
+def test_observing_state_is_not_misreported_as_idle_or_recording():
+    indicator = _indicator()
+
+    indicator.set_state("observing")
+
+    assert indicator._button.label == "✓"
+    assert "五秒" in indicator._button.tooltip
+    assert "recording" not in indicator._button.classes
+    assert not indicator._recording
+
+
 def test_error_state_uses_warning_indicator_and_message():
     indicator = _indicator()
 
@@ -55,3 +66,14 @@ def test_error_state_uses_warning_indicator_and_message():
     assert indicator._button.label == "⚠"
     assert "error" in indicator._button.classes
     assert indicator._button.tooltip == "麦克风启动失败"
+
+
+def test_successful_state_then_clear_error_removes_warning():
+    indicator = _indicator()
+    indicator.set_error("旧错误")
+
+    indicator.set_state("idle")
+    indicator.clear_error()
+
+    assert indicator._button.label == "🎤"
+    assert "error" not in indicator._button.classes
