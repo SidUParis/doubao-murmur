@@ -12,6 +12,9 @@ Design:
 - Click to toggle recording, drag to move
 """
 
+# gi.require_version() must precede gi.repository imports.
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import json
@@ -23,7 +26,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gtk
 
-from doubao_murmur.config import (
+from doubao_murmur.controller_config import (
     PTT_BUTTON_IDLE_OPACITY,
     PTT_BUTTON_PEEK,
     PTT_BUTTON_SIZE,
@@ -42,7 +45,8 @@ logger = logging.getLogger(__name__)
 
 _DRAG_THRESHOLD = 4  # px of travel before a press counts as a drag
 
-_PTT_CSS = ("""
+_PTT_CSS = (
+    """
 .ptt-window {
     background: transparent;
 }
@@ -71,11 +75,13 @@ _PTT_CSS = ("""
     background: rgba(155, 45, 45, 0.95);
     border-color: rgba(255, 150, 150, 0.8);
 }
-""" % {
-    "size": PTT_BUTTON_SIZE,
-    "radius": PTT_BUTTON_SIZE // 2 + 2,
-    "font": max(10, PTT_BUTTON_SIZE // 2),
-}).encode()
+"""
+    % {
+        "size": PTT_BUTTON_SIZE,
+        "radius": PTT_BUTTON_SIZE // 2 + 2,
+        "font": max(10, PTT_BUTTON_SIZE // 2),
+    }
+).encode()
 
 
 class OverlayButton:
@@ -190,9 +196,7 @@ class OverlayButton:
         surface = self._window.get_surface()
         monitor = None
         if display is not None:
-            if surface is not None and hasattr(
-                display, "get_monitor_at_surface"
-            ):
+            if surface is not None and hasattr(display, "get_monitor_at_surface"):
                 monitor = display.get_monitor_at_surface(surface)
             if monitor is None:
                 monitor = display.get_monitors().get_item(0)
@@ -322,7 +326,9 @@ class OverlayButton:
         self._save_position()
         logger.info(
             "PTT button moved to (%s, %s), edge=%s",
-            self._x, self._y, self._edge,
+            self._x,
+            self._y,
+            self._edge,
         )
         self._apply_position(tucked=True)
 
@@ -358,7 +364,8 @@ class OverlayButton:
             logger.info(
                 "Saved PTT position (%s, %s) is off every monitor; "
                 "falling back to the default spot",
-                self._x, self._y,
+                self._x,
+                self._y,
             )
             self._edge = None
             self._default_position()
@@ -381,9 +388,9 @@ class OverlayButton:
             self._window.set_visible(False)
 
     def set_state(self, state: str) -> None:
-        """Show idle, recording, and second-pass states without text UI."""
+        """Show daemon recording, finalization, and observation states."""
         self._state = state
-        self._recording = state != "idle"
+        self._recording = state in {"starting", "recording", "stopping"}
         if self._recording:
             self._error_message = ""
         self._refresh_visual()
@@ -403,7 +410,7 @@ class OverlayButton:
 
     def clear_error(self) -> None:
         self._error_message = ""
-        self._recording = self._state != "idle"
+        self._recording = self._state in {"starting", "recording", "stopping"}
         self._refresh_visual()
         self._apply_position(tucked=not self._recording)
 
@@ -429,6 +436,9 @@ class OverlayButton:
             self._button.add_css_class("finalizing")
             self._button.set_label("✨")
             tooltip = "正在进行二遍识别与文本规整"
+        elif self._state == "observing":
+            self._button.set_label("✓")
+            tooltip = "文本已提交；五秒内的原位修改可用于自动纠错"
         else:
             self._button.set_label("\U0001f3a4")
             tooltip = "点击开始语音输入"

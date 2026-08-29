@@ -12,7 +12,7 @@ import time
 
 from gi.repository import GLib
 
-from doubao_murmur.config import DEBOUNCE_INTERVAL
+from doubao_murmur.controller_config import DEBOUNCE_INTERVAL
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,7 @@ class HotkeyManager:
         self._last_toggle_time = 0.0
         self._last_keyboard_time = 0.0
 
-    def start(
-        self, overlay_button, evdev_listener=None, x11_listener=None
-    ) -> None:
+    def start(self, overlay_button, evdev_listener=None, x11_listener=None) -> None:
         """Initialize input backends."""
         self._overlay_button = overlay_button
         self._evdev_listener = evdev_listener
@@ -63,10 +61,7 @@ class HotkeyManager:
     @property
     def has_global_hotkey(self) -> bool:
         """True when a global hotkey backend is active."""
-        return (
-            self._evdev_listener is not None
-            or self._x11_listener is not None
-        )
+        return self._evdev_listener is not None or self._x11_listener is not None
 
     def trigger_toggle(self) -> None:
         """Called by input backends, possibly from non-GTK threads.

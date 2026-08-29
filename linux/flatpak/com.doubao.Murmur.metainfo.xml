@@ -5,19 +5,18 @@
   <project_license>MIT</project_license>
   <name>Open Voice Input Linux</name>
   <name xml:lang="zh_CN">Open Voice Input Linux 语音输入</name>
-  <summary>Lightweight inline voice input for Linux</summary>
-  <summary xml:lang="zh_CN">轻量的 Linux 光标内实时语音输入</summary>
+  <summary>Controller for the Open Voice Input Linux daemon</summary>
+  <summary xml:lang="zh_CN">Open Voice Input Linux 独立语音服务控制界面</summary>
   <description>
     <p>
-      Open Voice Input Linux is a lightweight voice-to-text input tool with Doubao and
-      Volcengine ASR backends. A small push-to-talk button shows recording and
-      finalization state; the authoritative result is entered directly into
-      the target application without a separate transcription window.
+      This compatibility UI forwards Right Alt, Escape and its small
+      push-to-talk button to the standalone Open Voice Input Linux daemon over
+      a private local socket. It has no microphone, provider network or API-key
+      access of its own.
     </p>
     <p xml:lang="zh_CN">
-      Open Voice Input Linux 是一款支持豆包与火山引擎 ASR 的轻量语音转文字工具。
-      小型按钮只显示录音和二遍整理状态，权威结果直接输入目标应用，
-      不再显示单独的黑色转写窗口。
+      这个兼容界面通过私有本地 socket，把右 Alt、ESC 和小型悬浮按钮转发给
+      Open Voice Input Linux 独立服务。它自身没有麦克风、供应商网络或 API Key 权限。
     </p>
   </description>
   <launchable type="desktop-id">com.doubao.Murmur.desktop</launchable>
@@ -26,6 +25,15 @@
     <name>Open Voice Input Linux contributors</name>
   </developer>
   <releases>
+    <release version="1.6.0" date="2026-08-30">
+      <description>
+        <p>Convert the Linux Flatpak into a controller-only compatibility UI
+           for the standalone Open Voice Input Linux daemon. Right Alt,
+           Escape and the floating button now use a private local socket;
+           remove the Flatpak's microphone, provider-network, API-key,
+           host-spawn and IBus-preedit capabilities.</p>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-08-24">
       <description>
         <p>Add focus-bound live IBus preedit, Volcengine BigModel two-pass ASR,

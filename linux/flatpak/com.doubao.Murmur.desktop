@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Open Voice Input Linux
 Name[zh_CN]=Open Voice Input Linux 语音输入
-Comment=Lightweight inline voice input for Linux
-Comment[zh_CN]=轻量的 Linux 光标内实时语音输入
+Comment=Controller for the Open Voice Input Linux daemon
+Comment[zh_CN]=Open Voice Input Linux 独立语音服务控制界面
 Exec=doubao-murmur
 Icon=com.doubao.Murmur
 Type=Application
@@ -10,4 +10,4 @@ Categories=Utility;Accessibility;
 StartupNotify=false
 Terminal=false
 X-KDE-StartupNotify=false
-Keywords=voice;speech;asr;input;doubao;
+Keywords=voice;speech;input;controller;
