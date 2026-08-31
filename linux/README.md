@@ -21,7 +21,9 @@ ESC ────────────────┼─> Flatpak controller
                     └─ adaptive correction
 ```
 
-控制界面只允许 `start`、`stop`、`toggle`、`cancel`、`status` 五个命令。正常
+控制界面只允许 `start`、`stop`、`toggle`、`press`、`release`、`cancel`、`status`
+七个命令。右 Alt 将原始单调时钟边沿交给 daemon，由 daemon 的用户设置决定点按切换
+或长按说话；悬浮按钮继续使用显式 start/stop。正常
 开始/停止使用显式命令；仅“结束五秒观察并立即开始下一次听写”使用原子的 `toggle`。socket 固定在
 `$XDG_RUNTIME_DIR/murmur-ime/voice.sock`，父目录必须仅当前用户可访问，socket
 必须属于当前用户且权限为 `0600`。命令按单一后台 FIFO 顺序执行；最长 50 秒的
@@ -29,9 +31,11 @@ ESC ────────────────┼─> Flatpak controller
 
 ## 功能
 
-- X11 下物理或 XTEST 注入的右 `Alt` 按下再松开可切换语音输入；与其他键组合时不触发。
+- X11 下物理或 XTEST 注入的右 `Alt` 会转发真实按下/松开边沿；daemon 可配置为
+  点按切换或长按说话。120 ms 组合键判别窗保留常见 AltGr 输入；判别窗后才出现的
+  组合键会立即 cancel，避免留下录音。
 - `ESC` 始终排入 `cancel`，并清除尚未发送的 toggle。
-- 悬浮按钮与右 Alt 使用完全相同的控制路径。
+- 悬浮按钮保留既有点按开始/停止路径，不受长按模式影响。
 - 按钮显示启动、录音、等待最终结果、五秒纠错观察和错误状态。
 - 活动时每 500 ms 进行一次轻量 `status` 查询；空闲后停止查询。
 - 托盘只显示状态、帮助和退出，不再提供旧豆包登录、API Key、个人词表或软键盘入口。
@@ -83,13 +87,14 @@ Flatpak，不会禁用宿主机的麦克风或 standalone daemon。
 
 | 操作 | 行为 |
 |---|---|
-| 右 Alt / 点击 🎤 | 空闲或观察状态下开始；录音中停止 |
+| 右 Alt | 按下/松开交给 daemon；按设置执行点按切换或长按说话 |
+| 点击 🎤 | 空闲或观察状态下开始；录音中停止 |
 | ESC | 取消当前或正在启动的任务 |
 | 关闭状态窗口 | 只隐藏窗口，控制器继续运行 |
 | 托盘“退出兼容界面” | 先异步 cancel，再退出控制器；daemon 服务仍由 systemd 管理 |
 
-第二次 toggle 如果发生在第一次 start 尚未返回时，只记录为待停止。只有 start
-回复仍处于活动状态时才发送第二个 toggle；若 start 已失败并回到 idle，则丢弃待停止，
+悬浮按钮的第二次 toggle 如果发生在第一次 start 尚未返回时，只记录为待停止。只有
+start 回复仍处于活动状态时才发送 stop；若 start 已失败并回到 idle，则丢弃待停止，
 避免一次失败后反而误启动新录音。超时后的 start 结果不确定时发送 `cancel`，绝不重试
 toggle。
 
@@ -110,7 +115,8 @@ PYTHONPATH=src python3 -m pytest -q tests
 
 测试使用临时 mode-0600 fake socket 和假 controller，不访问真实麦克风、API Key 或
 供应商网络。覆盖 socket 权限、响应上限、FIFO、迟到 sequence、pending-stop、ESC
-覆盖、observing UI、右 Alt press/release 以及 Flatpak 权限清单。
+覆盖、observing UI、右 Alt 原始时间戳/AltGr 判别、press/release FIFO 以及 Flatpak
+权限清单。
 
 ## License
 

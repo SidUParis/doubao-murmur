@@ -2,7 +2,7 @@
 
 OPTIONAL input method. Requires user to be in the 'input' group.
 Listens for:
-- Right Alt (KEY_RIGHTALT=100) press-and-release -> toggle
+- bare Right Alt (KEY_RIGHTALT=100) -> timestamped press/release edges
 - ESC (KEY_ESC=1) -> cancel
 """
 
@@ -14,6 +14,8 @@ import os
 import select
 import struct
 import threading
+
+from doubao_murmur.hotkey.edge_guard import RightAltEdgeGuard
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,17 @@ EVENT_FORMAT = "llHHi"
 class EvdevListener:
     """Reads /dev/input/event* devices for global hotkeys."""
 
-    def __init__(self, on_toggle, on_escape) -> None:
-        self.on_toggle = on_toggle
+    def __init__(self, on_press, on_release, on_escape) -> None:
+        self.on_press = on_press
+        self.on_release = on_release
         self.on_escape = on_escape
         self._thread: threading.Thread | None = None
         self._running = False
-        self._right_alt_down = False
-        self._other_key_pressed = False
+        self._right_alt = RightAltEdgeGuard(
+            on_press=self.on_press,
+            on_release=self.on_release,
+            on_cancel=self.on_escape,
+        )
 
     @staticmethod
     def is_available() -> bool:
@@ -68,6 +74,7 @@ class EvdevListener:
         self._running = False
         if self._thread:
             self._thread.join(timeout=2)
+        self._right_alt.close()
 
     def _find_keyboard_devices(self) -> list[str]:
         """Find /dev/input/event* files that are readable."""
@@ -107,9 +114,7 @@ class EvdevListener:
                     for i in range(0, len(data), EVENT_SIZE):
                         if i + EVENT_SIZE > len(data):
                             break
-                        event = struct.unpack(
-                            EVENT_FORMAT, data[i : i + EVENT_SIZE]
-                        )
+                        event = struct.unpack(EVENT_FORMAT, data[i : i + EVENT_SIZE])
                         ev_type = event[2]
                         ev_code = event[3]
                         ev_value = event[4]
@@ -119,19 +124,12 @@ class EvdevListener:
 
                         if ev_code == KEY_RIGHTALT:
                             if ev_value == 1:  # press
-                                self._right_alt_down = True
-                                self._other_key_pressed = False
+                                self._right_alt.press()
                             elif ev_value == 0:  # release
-                                if (
-                                    self._right_alt_down
-                                    and not self._other_key_pressed
-                                ):
-                                    self.on_toggle()
-                                self._right_alt_down = False
+                                self._right_alt.release()
                         elif ev_code != KEY_RIGHTALT and ev_value == 1:
-                            if self._right_alt_down:
-                                self._other_key_pressed = True
-                            if ev_code == KEY_ESC:
+                            cancelled = self._right_alt.other_key_pressed()
+                            if ev_code == KEY_ESC and not cancelled:
                                 self.on_escape()
         finally:
             for fd in fds:

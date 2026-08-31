@@ -19,7 +19,9 @@ from typing import Mapping
 
 MAX_RESPONSE_BYTES = 4096
 CONTROL_TIMEOUT_SECONDS = 50.0
-COMMANDS = frozenset({"start", "stop", "toggle", "cancel", "status"})
+COMMANDS = frozenset(
+    {"start", "stop", "toggle", "press", "release", "cancel", "status"}
+)
 STATES = frozenset({"idle", "starting", "recording", "stopping", "observing"})
 _CODE_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{0,63}\Z")
 
@@ -62,9 +64,25 @@ class DaemonController:
         self._timeout = max(0.05, min(CONTROL_TIMEOUT_SECONDS, float(timeout)))
         self._environ = environ if environ is not None else os.environ
 
-    def request(self, command: str) -> DaemonReply:
+    def request(
+        self, command: str, *, event_nanoseconds: int | None = None
+    ) -> DaemonReply:
         if command not in COMMANDS:
             raise DaemonControlError("invalid-command")
+        if command in {"press", "release"}:
+            if event_nanoseconds is None:
+                event_nanoseconds = time.monotonic_ns()
+            if (
+                type(event_nanoseconds) is not int
+                or event_nanoseconds <= 0
+                or len(str(event_nanoseconds)) > 20
+            ):
+                raise DaemonControlError("invalid-command")
+            wire_command = f"{command} {event_nanoseconds}"
+        else:
+            if event_nanoseconds is not None:
+                raise DaemonControlError("invalid-command")
+            wire_command = command
         path = self._socket_path()
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         deadline = time.monotonic() + self._timeout
@@ -72,7 +90,7 @@ class DaemonController:
             self._set_remaining_timeout(client, deadline)
             client.connect(str(path))
             self._set_remaining_timeout(client, deadline)
-            client.sendall((command + "\n").encode("ascii"))
+            client.sendall((wire_command + "\n").encode("ascii"))
             response = self._receive_response(client, deadline)
         except (TimeoutError, socket.timeout) as error:
             raise DaemonControlError("request-timeout") from error

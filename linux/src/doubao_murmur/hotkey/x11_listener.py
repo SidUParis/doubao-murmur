@@ -7,7 +7,7 @@ which never appears in /dev/input, so the evdev listener cannot see it.
 Passive: does not grab keys or interfere with other clients.
 
 Semantics mirror EvdevListener:
-- Right Alt press-and-release with no other key in between -> toggle
+- bare Right Alt -> timestamped press/release edges
 - ESC press -> cancel
 """
 
@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 import os
 import threading
+
+from doubao_murmur.hotkey.edge_guard import RightAltEdgeGuard
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,9 @@ XK_ISO_LEVEL3_SHIFT = 0xFE03
 class X11KeyListener:
     """Global X11 key listener using the XRecord extension."""
 
-    def __init__(self, on_toggle, on_escape, on_keyboard=None) -> None:
-        self.on_toggle = on_toggle
+    def __init__(self, on_press, on_release, on_escape, on_keyboard=None) -> None:
+        self.on_press = on_press
+        self.on_release = on_release
         self.on_escape = on_escape
         self.on_keyboard = on_keyboard
         self._thread: threading.Thread | None = None
@@ -36,8 +39,11 @@ class X11KeyListener:
         self._record_dpy = None
         self._ctrl_dpy = None
         self._context = None
-        self._right_alt_down = False
-        self._other_key_pressed = False
+        self._right_alt = RightAltEdgeGuard(
+            on_press=self.on_press,
+            on_release=self.on_release,
+            on_cancel=self.on_escape,
+        )
         self._kc_toggle: frozenset[int] = frozenset()
         self._kc_escape = 0
         # For the Ctrl+Super+Shift chord that toggles the on-screen keyboard.
@@ -112,9 +118,7 @@ class X11KeyListener:
             return False
 
         self._running = True
-        self._thread = threading.Thread(
-            target=self._listen_loop, daemon=True
-        )
+        self._thread = threading.Thread(target=self._listen_loop, daemon=True)
         self._thread.start()
         return True
 
@@ -133,16 +137,12 @@ class X11KeyListener:
         the toggle once another key is pressed, so AltGr+<key> accented
         input keeps working.
         """
-        keycodes = {
-            kc for kc, _index
-            in self._ctrl_dpy.keysym_to_keycodes(XK.XK_Alt_R)
-        }
+        keycodes = {kc for kc, _index in self._ctrl_dpy.keysym_to_keycodes(XK.XK_Alt_R)}
         if keycodes:
             return frozenset(keycodes)
 
         keycodes = {
-            kc for kc, _index
-            in self._ctrl_dpy.keysym_to_keycodes(XK_ISO_LEVEL3_SHIFT)
+            kc for kc, _index in self._ctrl_dpy.keysym_to_keycodes(XK_ISO_LEVEL3_SHIFT)
         }
         if keycodes:
             logger.info(
@@ -167,6 +167,7 @@ class X11KeyListener:
                 pass
         if self._thread:
             self._thread.join(timeout=2)
+        self._right_alt.close()
         self._cleanup()
 
     def _cleanup(self) -> None:
@@ -183,9 +184,7 @@ class X11KeyListener:
     def _listen_loop(self) -> None:
         try:
             # Blocks until record_disable_context is called
-            self._record_dpy.record_enable_context(
-                self._context, self._on_record_reply
-            )
+            self._record_dpy.record_enable_context(self._context, self._on_record_reply)
             self._record_dpy.record_free_context(self._context)
         except Exception as e:
             if self._running:
@@ -216,9 +215,12 @@ class X11KeyListener:
     def _handle_key(self, keycode: int, pressed: bool) -> None:
         # Track the modifier keys that make up the keyboard-toggle chord.
         chord_keys = (
-            self._kc_ctrl_l, self._kc_ctrl_r,
-            self._kc_super_l, self._kc_super_r,
-            self._kc_shift_l, self._kc_shift_r,
+            self._kc_ctrl_l,
+            self._kc_ctrl_r,
+            self._kc_super_l,
+            self._kc_super_r,
+            self._kc_shift_l,
+            self._kc_shift_r,
         )
         if keycode in chord_keys:
             if pressed:
@@ -240,20 +242,16 @@ class X11KeyListener:
         elif pressed and not self._chord_fired and self.on_keyboard:
             self._chord_fired = True
             self.on_keyboard()
-            # Don't let a right-Alt-held chord also fire dictation toggle.
-            self._other_key_pressed = True
+            # Don't let a right-Alt-held chord also fire dictation.
+            self._right_alt.other_key_pressed()
             return
 
         if keycode in self._kc_toggle:
             if pressed:
-                self._right_alt_down = True
-                self._other_key_pressed = False
+                self._right_alt.press()
             else:
-                if self._right_alt_down and not self._other_key_pressed:
-                    self.on_toggle()
-                self._right_alt_down = False
+                self._right_alt.release()
         elif pressed:
-            if self._right_alt_down:
-                self._other_key_pressed = True
-            if keycode == self._kc_escape:
+            cancelled = self._right_alt.other_key_pressed()
+            if keycode == self._kc_escape and not cancelled:
                 self.on_escape()

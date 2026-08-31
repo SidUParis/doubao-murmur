@@ -19,10 +19,10 @@ def test_controller_release_version_is_consistent():
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     release = ET.parse(METAINFO).getroot().find("./releases/release")
 
-    assert project["project"]["version"] == "1.6.0"
-    assert __version__ == "1.6.0"
+    assert project["project"]["version"] == "1.7.0"
+    assert __version__ == "1.7.0"
     assert release is not None
-    assert release.attrib["version"] == "1.6.0"
+    assert release.attrib["version"] == "1.7.0"
 
 
 def test_controller_can_only_see_private_runtime_socket_read_only():

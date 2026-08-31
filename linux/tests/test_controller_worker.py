@@ -18,8 +18,12 @@ class _Controller:
         self.release = threading.Event()
         self.block_first = False
 
-    def request(self, command: str) -> DaemonReply:
+    def request(
+        self, command: str, *, event_nanoseconds: int | None = None
+    ) -> DaemonReply:
         self.calls.append(command)
+        if event_nanoseconds is not None:
+            self.calls[-1] = f"{command}:{event_nanoseconds}"
         self.thread_ids.append(threading.get_ident())
         if len(self.calls) == 1 and self.block_first:
             self.entered.set()
@@ -77,6 +81,51 @@ def test_start_and_pending_stop_are_fifo_on_one_background_thread():
         assert [item[0] for item in completions] == sorted(
             item[0] for item in completions
         )
+    finally:
+        worker.close()
+
+
+def test_press_and_release_keep_fifo_order_and_physical_timestamps():
+    controller = _Controller(
+        [
+            DaemonReply(True, "started", "starting"),
+            DaemonReply(True, "stopping", "stopping"),
+        ]
+    )
+    controller.block_first = True
+    worker, completions, _ = _worker(controller)
+    try:
+        assert worker.submit_edge("press", 1_000_000_000)
+        assert controller.entered.wait(timeout=1)
+        assert worker.submit_edge("release", 2_000_000_000)
+        controller.release.set()
+        _wait_for(lambda: len(completions) == 2)
+
+        assert controller.calls == [
+            "press:1000000000",
+            "release:2000000000",
+        ]
+    finally:
+        worker.close()
+
+
+def test_lost_press_reply_discards_release_and_cancels_uncertain_session():
+    controller = _Controller(
+        [
+            DaemonControlError("request-timeout"),
+            DaemonReply(True, "cancelled", "idle"),
+        ]
+    )
+    controller.block_first = True
+    worker, completions, _ = _worker(controller)
+    try:
+        worker.submit_edge("press", 1_000_000_000)
+        assert controller.entered.wait(timeout=1)
+        worker.submit_edge("release", 2_000_000_000)
+        controller.release.set()
+        _wait_for(lambda: len(completions) == 2)
+
+        assert controller.calls == ["press:1000000000", "cancel"]
     finally:
         worker.close()
 

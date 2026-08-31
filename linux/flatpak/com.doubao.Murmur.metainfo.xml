@@ -25,6 +25,14 @@
     <name>Open Voice Input Linux contributors</name>
   </developer>
   <releases>
+    <release version="1.7.0" date="2026-08-31">
+      <description>
+        <p>Forward timestamped right-Alt key-down/key-up edges to the
+           standalone daemon, enabling its user-selected toggle or
+           push-to-talk mode. Preserve AltGr chords with a short arming guard
+           and keep the floating button on the legacy toggle path.</p>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-08-30">
       <description>
         <p>Convert the Linux Flatpak into a controller-only compatibility UI

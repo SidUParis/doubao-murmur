@@ -22,6 +22,8 @@ class HotkeyManager:
 
     def __init__(self) -> None:
         self.on_toggle = None  # () -> None
+        self.on_press = None  # (monotonic_nanoseconds: int) -> None
+        self.on_release = None  # (monotonic_nanoseconds: int) -> None
         self.on_cancel = None  # () -> None
         self.on_keyboard = None  # () -> None (toggle on-screen keyboard)
         self._overlay_button = None
@@ -75,6 +77,16 @@ class HotkeyManager:
         self._last_toggle_time = now
         GLib.idle_add(self._dispatch_toggle)
 
+    def trigger_press(self, event_nanoseconds: int) -> None:
+        """Marshal one physical key-down edge to the GTK main thread."""
+
+        GLib.idle_add(self._dispatch_press, event_nanoseconds)
+
+    def trigger_release(self, event_nanoseconds: int) -> None:
+        """Marshal one physical key-up edge to the GTK main thread."""
+
+        GLib.idle_add(self._dispatch_release, event_nanoseconds)
+
     def trigger_cancel(self) -> None:
         """Called by input backends for cancel (ESC)."""
         if self._cancel_enabled:
@@ -99,6 +111,16 @@ class HotkeyManager:
     def _dispatch_toggle(self) -> bool:
         if self.on_toggle:
             self.on_toggle()
+        return GLib.SOURCE_REMOVE
+
+    def _dispatch_press(self, event_nanoseconds: int) -> bool:
+        if self.on_press:
+            self.on_press(event_nanoseconds)
+        return GLib.SOURCE_REMOVE
+
+    def _dispatch_release(self, event_nanoseconds: int) -> bool:
+        if self.on_release:
+            self.on_release(event_nanoseconds)
         return GLib.SOURCE_REMOVE
 
     def _dispatch_cancel(self) -> bool:

@@ -20,6 +20,7 @@ class _Worker:
         self.post = post
         self.status_calls = 0
         self.toggle_intents: list[str] = []
+        self.edges: list[tuple[str, int]] = []
         self.cancel_calls = 0
         self.closed = False
         self.sequence = 0
@@ -37,6 +38,11 @@ class _Worker:
 
     def submit_cancel(self) -> int:
         self.cancel_calls += 1
+        self.sequence += 1
+        return self.sequence
+
+    def submit_edge(self, command: str, event_nanoseconds: int) -> int:
+        self.edges.append((command, event_nanoseconds))
         self.sequence += 1
         return self.sequence
 
@@ -72,6 +78,8 @@ class _OverlayButton:
 class _HotkeyManager:
     def __init__(self) -> None:
         self.on_toggle = None
+        self.on_press = None
+        self.on_release = None
         self.on_cancel = None
         self.cancel_enabled: list[bool] = []
         self.stopped = False
@@ -92,6 +100,14 @@ class _HotkeyManager:
     def trigger_cancel(self) -> None:
         if self.on_cancel:
             self.on_cancel()
+
+    def trigger_press(self, event_nanoseconds: int) -> None:
+        if self.on_press:
+            self.on_press(event_nanoseconds)
+
+    def trigger_release(self, event_nanoseconds: int) -> None:
+        if self.on_release:
+            self.on_release(event_nanoseconds)
 
 
 class _UnavailableListener:
@@ -139,20 +155,17 @@ def test_startup_only_requests_status(monkeypatch):
     assert app.ptt_button.show_calls == 1
 
 
-def test_right_alt_and_floating_button_share_toggle_path(monkeypatch):
+def test_right_alt_forwards_edges_while_floating_button_keeps_toggle(monkeypatch):
     app, worker = _configured_app(monkeypatch)
 
-    app.hotkey_manager.trigger_toggle()
-    assert worker.toggle_intents == ["start"]
+    app.hotkey_manager.trigger_press(100)
+    app.hotkey_manager.trigger_release(200)
+    assert worker.edges == [("press", 100), ("release", 200)]
     assert app.app_state.recording_state is RecordingState.STARTING
-
-    app.hotkey_manager.trigger_toggle()
-    assert worker.toggle_intents == ["start", "stop"]
-    assert app.app_state.recording_state is RecordingState.STOPPING
 
     app.app_state.recording_state = RecordingState.IDLE
     app.ptt_button.on_press()
-    assert worker.toggle_intents == ["start", "stop", "start"]
+    assert worker.toggle_intents == ["start"]
 
 
 def test_startup_status_cannot_undo_newer_optimistic_toggle(monkeypatch):

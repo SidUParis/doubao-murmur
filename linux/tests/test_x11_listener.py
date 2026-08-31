@@ -4,10 +4,11 @@ from doubao_murmur.hotkey.x11_listener import X11KeyListener
 
 
 def _listener():
-    toggles = []
+    edges = []
     cancels = []
     listener = X11KeyListener(
-        on_toggle=lambda: toggles.append(True),
+        on_press=lambda timestamp: edges.append(("press", timestamp)),
+        on_release=lambda timestamp: edges.append(("release", timestamp)),
         on_escape=lambda: cancels.append(True),
     )
     listener._kc_toggle = frozenset({108})
@@ -18,27 +19,28 @@ def _listener():
     listener._kc_super_r = 134
     listener._kc_shift_l = 50
     listener._kc_shift_r = 62
-    return listener, toggles, cancels
+    return listener, edges, cancels
 
 
-def test_right_alt_press_release_toggles_exactly_once():
-    listener, toggles, _ = _listener()
+def test_right_alt_press_release_forwards_two_ordered_edges():
+    listener, edges, _ = _listener()
 
     listener._handle_key(108, True)
     listener._handle_key(108, False)
 
-    assert toggles == [True]
+    assert [edge[0] for edge in edges] == ["press", "release"]
+    assert edges[1][1] >= edges[0][1]
 
 
-def test_right_alt_chord_does_not_toggle():
-    listener, toggles, _ = _listener()
+def test_right_alt_chord_does_not_emit_edges():
+    listener, edges, _ = _listener()
 
     listener._handle_key(108, True)
     listener._handle_key(38, True)
     listener._handle_key(38, False)
     listener._handle_key(108, False)
 
-    assert toggles == []
+    assert edges == []
 
 
 def test_escape_dispatches_cancel():

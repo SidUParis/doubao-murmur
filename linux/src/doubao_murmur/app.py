@@ -56,6 +56,9 @@ _DAEMON_ERRORS = {
     "adaptive-correction-failed": "本次自动纠错学习未能保存",
     "audio-backpressure": "网络发送持续阻塞，本次语音已安全取消",
     "recording-limit-warning": "本次录音将在一分钟内达到时长上限",
+    "interaction-config-invalid": "快捷键交互设置无效",
+    "interaction-safety-unavailable": "长按说话安全计时器不可用",
+    "interaction-unavailable": "独立语音服务不支持按下／松开模式",
 }
 
 
@@ -104,18 +107,22 @@ class DoubaoMurmurApp(Gtk.Application):
 
         self.hotkey_manager = HotkeyManager()
         self.hotkey_manager.on_toggle = self._handle_toggle
+        self.hotkey_manager.on_press = self._handle_key_press
+        self.hotkey_manager.on_release = self._handle_key_release
         self.hotkey_manager.on_cancel = self._handle_cancel
 
         x11 = None
         evdev = None
         if X11KeyListener.is_available():
             x11 = X11KeyListener(
-                on_toggle=self.hotkey_manager.trigger_toggle,
+                on_press=self.hotkey_manager.trigger_press,
+                on_release=self.hotkey_manager.trigger_release,
                 on_escape=self.hotkey_manager.trigger_cancel,
             )
         elif EvdevListener.is_available():
             evdev = EvdevListener(
-                on_toggle=self.hotkey_manager.trigger_toggle,
+                on_press=self.hotkey_manager.trigger_press,
+                on_release=self.hotkey_manager.trigger_release,
                 on_escape=self.hotkey_manager.trigger_cancel,
             )
         self.hotkey_manager.start(
@@ -177,6 +184,29 @@ class DoubaoMurmurApp(Gtk.Application):
             self.app_state.recording_state = optimistic
             if self.hotkey_manager:
                 self.hotkey_manager.set_cancel_enabled(True)
+
+    def _handle_key_press(self, event_nanoseconds: int) -> None:
+        worker = self.worker
+        if worker is None or self._quit_requested:
+            return
+        sequence = worker.submit_edge("press", event_nanoseconds)
+        if sequence is None:
+            return
+        self._latest_user_sequence = max(self._latest_user_sequence, sequence)
+        self.app_state.error_message = None
+        if self.app_state.recording_state in {
+            RecordingState.IDLE,
+            RecordingState.OBSERVING,
+        }:
+            self.app_state.recording_state = RecordingState.STARTING
+
+    def _handle_key_release(self, event_nanoseconds: int) -> None:
+        worker = self.worker
+        if worker is None or self._quit_requested:
+            return
+        sequence = worker.submit_edge("release", event_nanoseconds)
+        if sequence is not None:
+            self._latest_user_sequence = max(self._latest_user_sequence, sequence)
 
     def _handle_cancel(self) -> None:
         worker = self.worker
@@ -294,6 +324,7 @@ class DoubaoMurmurApp(Gtk.Application):
         dialog.set_property(
             "secondary-text",
             "右 Alt 或悬浮 🎤：开始／停止语音输入\n"
+            "长按模式下，右 Alt 松开即结束；模式由独立服务设置\n"
             "ESC：取消当前语音输入\n\n"
             "录音、识别、光标内提交和自动纠错均由独立的 "
             "Open Voice Input Linux 服务完成。本兼容界面只发送本地控制命令，"

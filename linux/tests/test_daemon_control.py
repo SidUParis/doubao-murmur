@@ -69,6 +69,29 @@ def test_allowlisted_commands_roundtrip_over_private_socket(tmp_path, command):
     assert reply == DaemonReply(ok=True, code="status", state="idle")
 
 
+@pytest.mark.parametrize("command", ["press", "release"])
+def test_edge_commands_include_the_captured_monotonic_timestamp(tmp_path, command):
+    runtime, path = _runtime(tmp_path)
+    response = b'{"ok":true,"code":"released","state":"idle"}\n'
+    with _fake_daemon(path, response) as received:
+        reply = DaemonController(
+            path, environ={"XDG_RUNTIME_DIR": str(runtime)}
+        ).request(command, event_nanoseconds=1_234_567_890)
+
+    assert received == [f"{command} 1234567890\n".encode("ascii")]
+    assert reply == DaemonReply(ok=True, code="released", state="idle")
+
+
+def test_rejects_timestamp_on_legacy_command_before_opening_socket(tmp_path):
+    runtime, path = _runtime(tmp_path)
+    controller = DaemonController(path, environ={"XDG_RUNTIME_DIR": str(runtime)})
+
+    with pytest.raises(DaemonControlError) as raised:
+        controller.request("status", event_nanoseconds=1)
+
+    assert raised.value.code == "invalid-command"
+
+
 def test_rejects_unknown_command_without_opening_socket(tmp_path):
     runtime, path = _runtime(tmp_path)
     controller = DaemonController(path, environ={"XDG_RUNTIME_DIR": str(runtime)})

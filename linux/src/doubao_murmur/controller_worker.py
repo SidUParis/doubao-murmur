@@ -19,6 +19,7 @@ class _WorkItem:
     sequence: int
     command: str
     intent: str = ""
+    event_nanoseconds: int | None = None
 
 
 Completion = Callable[[int, str, DaemonReply | None, str | None], None]
@@ -53,6 +54,7 @@ class ControllerWorker:
         self._inflight: _WorkItem | None = None
         self._queued_action: _WorkItem | None = None
         self._pending_stop = False
+        self._edge_down = False
         self._status_pending = False
         self._delivery_event: threading.Event | None = None
         self._closed = False
@@ -68,7 +70,11 @@ class ControllerWorker:
             return None
         command = {"start": "start", "stop": "stop", "restart": "toggle"}[intent]
         with self._lock:
-            if self._closed:
+            if (
+                self._closed
+                or self._edge_down
+                or self._edge_transaction_pending_locked()
+            ):
                 return None
             existing = self._queued_action
             if existing is None and self._inflight is not None:
@@ -85,11 +91,43 @@ class ControllerWorker:
             self._condition.notify()
             return item.sequence
 
+    def submit_edge(self, command: str, event_nanoseconds: int) -> int | None:
+        """Queue one ordered physical key edge with its original timestamp."""
+
+        if command not in {"press", "release"}:
+            return None
+        if (
+            type(event_nanoseconds) is not int
+            or event_nanoseconds <= 0
+            or len(str(event_nanoseconds)) > 20
+        ):
+            return None
+        with self._lock:
+            if self._closed:
+                return None
+            if command == "press":
+                if self._edge_down:
+                    return None
+                self._edge_down = True
+            else:
+                if not self._edge_down:
+                    return None
+                self._edge_down = False
+            item = self._new_item_locked(
+                command,
+                f"edge-{command}",
+                event_nanoseconds=event_nanoseconds,
+            )
+            self._queue.append(item)
+            self._condition.notify()
+            return item.sequence
+
     def submit_cancel(self) -> int | None:
         with self._lock:
             if self._closed:
                 return None
             self._pending_stop = False
+            self._edge_down = False
             self._drain_unsent_locked()
             item = self._new_item_locked("cancel")
             self._queue.append(item)
@@ -98,7 +136,12 @@ class ControllerWorker:
 
     def submit_status(self) -> int | None:
         with self._lock:
-            if self._closed or self._status_pending:
+            if (
+                self._closed
+                or self._status_pending
+                or self._edge_down
+                or self._edge_transaction_pending_locked()
+            ):
                 return None
             if self._inflight is not None or self._queued_action is not None:
                 return None
@@ -114,14 +157,26 @@ class ControllerWorker:
                 return
             self._closed = True
             self._pending_stop = False
+            self._edge_down = False
             self._drain_unsent_locked()
             if self._delivery_event is not None:
                 self._delivery_event.set()
             self._condition.notify()
 
-    def _new_item_locked(self, command: str, intent: str = "") -> _WorkItem:
+    def _new_item_locked(
+        self,
+        command: str,
+        intent: str = "",
+        *,
+        event_nanoseconds: int | None = None,
+    ) -> _WorkItem:
         self._sequence += 1
-        return _WorkItem(self._sequence, command, intent)
+        return _WorkItem(
+            self._sequence,
+            command,
+            intent,
+            event_nanoseconds,
+        )
 
     def _drain_unsent_locked(self) -> None:
         while self._queue:
@@ -133,6 +188,11 @@ class ControllerWorker:
                 self._queued_action = None
             if item.command == "status":
                 self._status_pending = False
+
+    def _edge_transaction_pending_locked(self) -> bool:
+        if self._inflight is not None and self._inflight.intent.startswith("edge-"):
+            return True
+        return any(item.intent.startswith("edge-") for item in self._queue)
 
     def _run(self) -> None:
         while True:
@@ -152,7 +212,13 @@ class ControllerWorker:
             reply: DaemonReply | None = None
             error_code: str | None = None
             try:
-                reply = self._controller.request(item.command)
+                if item.event_nanoseconds is None:
+                    reply = self._controller.request(item.command)
+                else:
+                    reply = self._controller.request(
+                        item.command,
+                        event_nanoseconds=item.event_nanoseconds,
+                    )
             except DaemonControlError as error:
                 error_code = error.code
             except Exception:
@@ -203,7 +269,20 @@ class ControllerWorker:
                     self._status_pending = False
                 if item.intent in {"start", "restart"}:
                     self._queue_pending_stop_locked(reply, error_code)
+                elif item.command == "press" and error_code is not None:
+                    self._replace_release_with_cancel_locked()
             delivered.set()
+
+    def _replace_release_with_cancel_locked(self) -> None:
+        """A lost press reply may have started toggle mode; fail closed."""
+
+        retained = deque(
+            item for item in self._queue if not item.intent.startswith("edge-")
+        )
+        self._queue = retained
+        self._edge_down = False
+        self._queue.appendleft(self._new_item_locked("cancel"))
+        self._condition.notify()
 
     def _queue_pending_stop_locked(
         self,

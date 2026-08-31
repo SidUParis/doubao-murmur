@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "doubao-murmur"
-version = "1.6.0"
+version = "1.7.0"
 description = "Controller UI for the Open Voice Input Linux daemon"
 readme = "README.md"
 license = "MIT"

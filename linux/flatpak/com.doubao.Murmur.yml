@@ -48,7 +48,7 @@ modules:
           controller_config.py controller_worker.py daemon_control.py; do
           install -m 0644 "src/doubao_murmur/$file" "$package/$file"
         done
-        for file in __init__.py evdev_listener.py manager.py \
+        for file in __init__.py edge_guard.py evdev_listener.py manager.py \
           overlay_button.py x11_listener.py; do
           install -m 0644 "src/doubao_murmur/hotkey/$file" "$package/hotkey/$file"
         done
