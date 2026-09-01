@@ -53,7 +53,8 @@ _DAEMON_ERRORS = {
     "preedit-lost": "输入焦点已改变，本次语音已取消",
     "recognition-context-invalid": "语音词表或纠错配置无效",
     "clipboard-unavailable": (
-        "剪贴板工具不可用；请为当前桌面会话安装 xclip（X11）或 wl-clipboard（Wayland）"
+        "本地图形会话或剪贴板工具不可用；请确认 DISPLAY／WAYLAND_DISPLAY 环境，"
+        "并安装 xclip（X11）或 wl-clipboard（Wayland）"
     ),
     "clipboard-copy-failed": "终稿未能安全复制；没有自动粘贴或改写远端输入框",
     "microphone-unavailable": "没有可用的麦克风",

@@ -32,7 +32,9 @@ class StatusNotice(Enum):
     CLIPBOARD_READY = "clipboard-ready"
 
 
-CLIPBOARD_ARMED_NOTICE = "剪贴板交付已启用；下一条终稿会复制，请在远端手动粘贴"
+CLIPBOARD_ARMED_NOTICE = (
+    "已选择剪贴板交付；下一次开始时会先检查本地图形会话与剪贴板工具"
+)
 CLIPBOARD_READY_NOTICE = "上一条终稿已复制，可在远端手动粘贴；可能已被覆盖"
 
 

@@ -73,7 +73,7 @@ def test_idle_clipboard_notices_are_distinct_and_ready_is_historical():
     ready = _tray(notice=StatusNotice.CLIPBOARD_READY)
 
     assert armed._status_text() == (
-        "状态：📋 剪贴板交付已启用；下一条终稿会复制，请在远端手动粘贴"
+        "状态：📋 已选择剪贴板交付；下一次开始时会先检查本地图形会话与剪贴板工具"
     )
     assert ready._status_text() == (
         "状态：✓ 上一条终稿已复制，可在远端手动粘贴；可能已被覆盖"

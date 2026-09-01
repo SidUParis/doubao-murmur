@@ -348,8 +348,9 @@ def test_active_status_poll_and_cancel_do_not_erase_persistent_clipboard_mode(
         ),
         (
             "clipboard-unavailable",
-            "剪贴板工具不可用；请为当前桌面会话安装 "
-            "xclip（X11）或 wl-clipboard（Wayland）",
+            "本地图形会话或剪贴板工具不可用；请确认 "
+            "DISPLAY／WAYLAND_DISPLAY 环境，并安装 xclip（X11）或 "
+            "wl-clipboard（Wayland）",
         ),
     ],
 )
