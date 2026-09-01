@@ -1,5 +1,10 @@
 """Visual-state tests for the compact push-to-talk indicator."""
 
+from doubao_murmur.app_state import (
+    CLIPBOARD_ARMED_NOTICE,
+    CLIPBOARD_READY_NOTICE,
+    StatusNotice,
+)
 from doubao_murmur.hotkey.overlay_button import OverlayButton
 
 
@@ -77,3 +82,65 @@ def test_successful_state_then_clear_error_removes_warning():
 
     assert indicator._button.label == "🎤"
     assert "error" not in indicator._button.classes
+
+
+def test_clipboard_armed_is_visible_while_idle_without_error_styling():
+    indicator = _indicator()
+    positions = []
+    indicator._apply_position = lambda tucked: positions.append(tucked)
+
+    indicator.set_notice(StatusNotice.CLIPBOARD_ARMED.value)
+
+    assert indicator._button.label == "📋"
+    assert indicator._button.tooltip == CLIPBOARD_ARMED_NOTICE
+    assert "notice" in indicator._button.classes
+    assert "ready" not in indicator._button.classes
+    assert "error" not in indicator._button.classes
+    assert indicator._busy()
+    assert positions == [False]
+
+
+def test_clipboard_ready_uses_historical_wording_and_distinct_style():
+    indicator = _indicator()
+
+    indicator.set_notice(StatusNotice.CLIPBOARD_READY.value)
+
+    assert indicator._button.label == "✓"
+    assert indicator._button.tooltip == (
+        "上一条终稿已复制，可在远端手动粘贴；可能已被覆盖"
+    )
+    assert indicator._button.tooltip == CLIPBOARD_READY_NOTICE
+    assert "ready" in indicator._button.classes
+    assert "notice" not in indicator._button.classes
+    assert "error" not in indicator._button.classes
+
+
+def test_error_and_active_state_keep_precedence_over_clipboard_notice():
+    indicator = _indicator()
+    indicator.set_notice(StatusNotice.CLIPBOARD_READY.value)
+
+    indicator.set_state("recording")
+    assert indicator._button.label == "⏹"
+    assert "recording" in indicator._button.classes
+
+    indicator.set_error("麦克风启动失败")
+    assert indicator._button.label == "⚠"
+    assert "error" in indicator._button.classes
+
+    indicator.set_state("idle")
+    indicator.clear_error()
+    assert indicator._button.label == "✓"
+    assert "ready" in indicator._button.classes
+
+
+def test_clearing_clipboard_notice_restores_idle_edge_tucking():
+    indicator = _indicator()
+    positions = []
+    indicator._apply_position = lambda tucked: positions.append(tucked)
+    indicator.set_notice(StatusNotice.CLIPBOARD_ARMED.value)
+
+    indicator.set_notice(StatusNotice.NONE.value)
+
+    assert indicator._button.label == "🎤"
+    assert not indicator._busy()
+    assert positions == [False, True]

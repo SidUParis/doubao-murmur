@@ -12,7 +12,12 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk
 
-from doubao_murmur.app_state import AppState, LoginStatus, RecordingState
+from doubao_murmur.app_state import (
+    AppState,
+    LoginStatus,
+    RecordingState,
+    StatusNotice,
+)
 from doubao_murmur.controller_worker import ControllerWorker
 from doubao_murmur.daemon_control import DaemonController, DaemonReply
 from doubao_murmur.hotkey.evdev_listener import EvdevListener
@@ -56,6 +61,10 @@ _DAEMON_ERRORS = {
     "adaptive-correction-failed": "本次自动纠错学习未能保存",
     "audio-backpressure": "网络发送持续阻塞，本次语音已安全取消",
     "recording-limit-warning": "本次录音将在一分钟内达到时长上限",
+}
+_STATUS_NOTICES = {
+    "clipboard-armed": StatusNotice.CLIPBOARD_ARMED,
+    "clipboard-ready": StatusNotice.CLIPBOARD_READY,
 }
 
 
@@ -132,6 +141,7 @@ class DoubaoMurmurApp(Gtk.Application):
             "recording-state-changed", self._on_recording_state_changed
         )
         self.app_state.connect("error-message-changed", self._on_error_message_changed)
+        self.app_state.connect("status-notice-changed", self._on_status_notice_changed)
         self.ptt_button.show()
 
         self.tray_icon = TrayIcon(
@@ -232,6 +242,15 @@ class DoubaoMurmurApp(Gtk.Application):
             self._pending_stop_ui = False
         self.app_state.recording_state = display_state
 
+        notice = _STATUS_NOTICES.get(reply.code)
+        if notice is not None:
+            self.app_state.status_notice = notice
+        elif command == "status":
+            # A fresh status without a clipboard notice supersedes any older
+            # content-free clipboard state. Non-status no-op commands do not
+            # erase the persistent mode last reported by the daemon.
+            self.app_state.status_notice = StatusNotice.NONE
+
         message = _DAEMON_ERRORS.get(reply.code)
         if message is not None:
             self.app_state.error_message = message
@@ -282,6 +301,10 @@ class DoubaoMurmurApp(Gtk.Application):
             self.ptt_button.set_error(message)
         else:
             self.ptt_button.clear_error()
+
+    def _on_status_notice_changed(self, _app_state, notice: str) -> None:
+        if self.ptt_button:
+            self.ptt_button.set_notice(notice)
 
     def _show_help(self) -> None:
         dialog = Gtk.MessageDialog(

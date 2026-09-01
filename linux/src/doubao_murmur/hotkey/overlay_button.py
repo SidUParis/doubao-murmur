@@ -26,6 +26,11 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gtk
 
+from doubao_murmur.app_state import (
+    CLIPBOARD_ARMED_NOTICE,
+    CLIPBOARD_READY_NOTICE,
+    StatusNotice,
+)
 from doubao_murmur.controller_config import (
     PTT_BUTTON_IDLE_OPACITY,
     PTT_BUTTON_PEEK,
@@ -75,6 +80,14 @@ _PTT_CSS = (
     background: rgba(155, 45, 45, 0.95);
     border-color: rgba(255, 150, 150, 0.8);
 }
+.ptt-button.notice {
+    background: rgba(45, 95, 155, 0.92);
+    border-color: rgba(145, 205, 255, 0.85);
+}
+.ptt-button.ready {
+    background: rgba(45, 120, 78, 0.92);
+    border-color: rgba(145, 235, 175, 0.85);
+}
 """
     % {
         "size": PTT_BUTTON_SIZE,
@@ -101,6 +114,7 @@ class OverlayButton:
         self._edge: str | None = None  # "left" | "right" | None
         self._state = "idle"
         self._error_message = ""
+        self._notice = StatusNotice.NONE
         self._recording = False
         self._dragging = False
         self._anchor_pointer: tuple[int, int] | None = None
@@ -271,7 +285,14 @@ class OverlayButton:
     def _busy(self) -> bool:
         """A drag moves the window under the cursor, which fires
         enter/leave; acting on those would fight the drag."""
-        return self._dragging or self._recording
+        return (
+            self._dragging or self._recording or self._notice is not StatusNotice.NONE
+        )
+
+    def _should_tuck(self) -> bool:
+        """Keep a persistent clipboard-mode notice fully visible while idle."""
+
+        return not self._recording and self._notice is StatusNotice.NONE
 
     def _on_pointer_enter(self, *_args) -> None:
         if not self._busy():
@@ -330,7 +351,7 @@ class OverlayButton:
             self._y,
             self._edge,
         )
-        self._apply_position(tucked=True)
+        self._apply_position(tucked=self._should_tuck())
 
     # -- interaction --------------------------------------------------------
 
@@ -371,7 +392,7 @@ class OverlayButton:
             self._default_position()
         self._clamp_to_monitor()
         self._update_edge()
-        self._apply_position(tucked=not self._recording)
+        self._apply_position(tucked=self._should_tuck())
         return GLib.SOURCE_REMOVE
 
     def _clamp_to_monitor(self) -> None:
@@ -396,7 +417,7 @@ class OverlayButton:
         self._refresh_visual()
         # Never leave the button half off-screen while it is the only
         # visible sign that dictation is live.
-        self._apply_position(tucked=not self._recording)
+        self._apply_position(tucked=self._should_tuck())
 
     def set_recording_state(self, is_recording: bool) -> None:
         """Compatibility wrapper for older callers."""
@@ -412,12 +433,22 @@ class OverlayButton:
         self._error_message = ""
         self._recording = self._state in {"starting", "recording", "stopping"}
         self._refresh_visual()
-        self._apply_position(tucked=not self._recording)
+        self._apply_position(tucked=self._should_tuck())
+
+    def set_notice(self, notice: str) -> None:
+        """Show one fixed content-free daemon notice while otherwise idle."""
+
+        try:
+            self._notice = StatusNotice(notice)
+        except (TypeError, ValueError):
+            self._notice = StatusNotice.NONE
+        self._refresh_visual()
+        self._apply_position(tucked=self._should_tuck())
 
     def _refresh_visual(self) -> None:
         if not self._button:
             return
-        for css_class in ("recording", "finalizing", "error"):
+        for css_class in ("recording", "finalizing", "error", "notice", "ready"):
             self._button.remove_css_class(css_class)
 
         if self._error_message:
@@ -439,6 +470,14 @@ class OverlayButton:
         elif self._state == "observing":
             self._button.set_label("✓")
             tooltip = "文本已提交；五秒内的原位修改可用于自动纠错"
+        elif self._notice is StatusNotice.CLIPBOARD_ARMED:
+            self._button.add_css_class("notice")
+            self._button.set_label("📋")
+            tooltip = CLIPBOARD_ARMED_NOTICE
+        elif self._notice is StatusNotice.CLIPBOARD_READY:
+            self._button.add_css_class("ready")
+            self._button.set_label("✓")
+            tooltip = CLIPBOARD_READY_NOTICE
         else:
             self._button.set_label("\U0001f3a4")
             tooltip = "点击开始语音输入"

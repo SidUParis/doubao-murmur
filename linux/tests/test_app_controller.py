@@ -7,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from doubao_murmur import app as app_module
-from doubao_murmur.app_state import RecordingState
+from doubao_murmur.app_state import RecordingState, StatusNotice
 from doubao_murmur.daemon_control import DaemonReply
 
 
@@ -50,6 +50,7 @@ class _OverlayButton:
         self.on_cancel = on_cancel
         self.states: list[str] = []
         self.errors: list[str] = []
+        self.notices: list[str] = []
         self.clear_calls = 0
         self.show_calls = 0
 
@@ -67,6 +68,9 @@ class _OverlayButton:
 
     def clear_error(self) -> None:
         self.clear_calls += 1
+
+    def set_notice(self, notice: str) -> None:
+        self.notices.append(notice)
 
 
 class _HotkeyManager:
@@ -264,6 +268,60 @@ def test_successful_idle_reply_clears_sticky_error(monkeypatch):
 
     assert app.app_state.error_message is None
     assert app.ptt_button.clear_calls >= 1
+
+
+@pytest.mark.parametrize(
+    ("code", "notice"),
+    [
+        ("clipboard-armed", StatusNotice.CLIPBOARD_ARMED),
+        ("clipboard-ready", StatusNotice.CLIPBOARD_READY),
+    ],
+)
+def test_clipboard_status_codes_are_content_free_notices_not_errors(
+    monkeypatch, code, notice
+):
+    app, _worker = _configured_app(monkeypatch)
+
+    app._on_command_complete(
+        1,
+        "status",
+        DaemonReply(True, code, "idle"),
+        None,
+    )
+
+    assert app.app_state.status_notice is notice
+    assert app.app_state.error_message is None
+    assert app.ptt_button.notices[-1] == notice.value
+    assert app.ptt_button.errors == []
+
+
+def test_plain_idle_status_clears_a_stale_clipboard_notice(monkeypatch):
+    app, _worker = _configured_app(monkeypatch)
+    app.app_state.status_notice = StatusNotice.CLIPBOARD_ARMED
+
+    app._on_command_complete(
+        1,
+        "status",
+        DaemonReply(True, "status", "idle"),
+        None,
+    )
+
+    assert app.app_state.status_notice is StatusNotice.NONE
+    assert app.ptt_button.notices[-1] == ""
+
+
+def test_non_status_idle_reply_does_not_erase_persistent_clipboard_mode(monkeypatch):
+    app, _worker = _configured_app(monkeypatch)
+    app.app_state.status_notice = StatusNotice.CLIPBOARD_ARMED
+
+    app._on_command_complete(
+        1,
+        "cancel",
+        DaemonReply(False, "no-active-session", "idle"),
+        None,
+    )
+
+    assert app.app_state.status_notice is StatusNotice.CLIPBOARD_ARMED
 
 
 def test_late_completion_cannot_overwrite_newer_state(monkeypatch):

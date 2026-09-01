@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from doubao_murmur.app_state import RecordingState
+from doubao_murmur.app_state import RecordingState, StatusNotice
 from doubao_murmur.ui import tray_icon as tray_icon_module
 from doubao_murmur.ui.tray_icon import TrayIcon
 
@@ -27,11 +27,16 @@ class _Sni:
         self.tooltip = tooltip
 
 
-def _tray(state=RecordingState.IDLE, error=None):
+def _tray(
+    state=RecordingState.IDLE,
+    error=None,
+    notice=StatusNotice.NONE,
+):
     tray = TrayIcon.__new__(TrayIcon)
     tray.app_state = SimpleNamespace(
         recording_state=state,
         error_message=error,
+        status_notice=notice,
     )
     tray._on_quit_clicked = lambda: None
     tray._on_help_clicked = lambda: None
@@ -61,6 +66,33 @@ def test_observation_and_error_are_visible_in_status():
 
     tray.app_state.error_message = "独立语音服务不可用"
     assert tray._status_text() == "状态：⚠ 独立语音服务不可用"
+
+
+def test_idle_clipboard_notices_are_distinct_and_ready_is_historical():
+    armed = _tray(notice=StatusNotice.CLIPBOARD_ARMED)
+    ready = _tray(notice=StatusNotice.CLIPBOARD_READY)
+
+    assert armed._status_text() == (
+        "状态：📋 剪贴板交付已启用；下一条终稿会复制，请在远端手动粘贴"
+    )
+    assert ready._status_text() == (
+        "状态：✓ 上一条终稿已复制，可在远端手动粘贴；可能已被覆盖"
+    )
+
+
+def test_error_and_active_state_take_precedence_over_clipboard_notice():
+    active = _tray(
+        RecordingState.RECORDING,
+        notice=StatusNotice.CLIPBOARD_READY,
+    )
+    failed = _tray(
+        RecordingState.IDLE,
+        error="独立语音服务不可用",
+        notice=StatusNotice.CLIPBOARD_READY,
+    )
+
+    assert active._status_text() == "状态：正在录音"
+    assert failed._status_text() == "状态：⚠ 独立语音服务不可用"
 
 
 def test_refresh_updates_window_and_sni():
