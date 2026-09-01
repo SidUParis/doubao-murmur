@@ -25,6 +25,14 @@
     <name>Open Voice Input Linux contributors</name>
   </developer>
   <releases>
+    <release version="1.6.1" date="2026-09-02">
+      <description>
+        <p>Show fixed, content-free clipboard-delivery status notices in the
+           controller, tray and floating button. Persistent RDP clipboard
+           mode remains visible while idle, without granting the Flatpak
+           clipboard access or any new runtime permission.</p>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-08-30">
       <description>
         <p>Convert the Linux Flatpak into a controller-only compatibility UI

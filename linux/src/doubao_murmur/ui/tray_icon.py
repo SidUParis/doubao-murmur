@@ -13,7 +13,13 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, Gtk
 
-from doubao_murmur.app_state import AppState, RecordingState
+from doubao_murmur.app_state import (
+    CLIPBOARD_ARMED_NOTICE,
+    CLIPBOARD_READY_NOTICE,
+    AppState,
+    RecordingState,
+    StatusNotice,
+)
 from doubao_murmur.ui.sni_tray import SniTray
 
 logger = logging.getLogger(__name__)
@@ -28,6 +34,10 @@ _STATE_LABELS = {
     RecordingState.RECORDING: "状态：正在录音",
     RecordingState.STOPPING: "状态：正在等待最终结果",
     RecordingState.OBSERVING: "状态：已提交，正在观察原位纠错",
+}
+_NOTICE_LABELS = {
+    StatusNotice.CLIPBOARD_ARMED: f"状态：📋 {CLIPBOARD_ARMED_NOTICE}",
+    StatusNotice.CLIPBOARD_READY: f"状态：✓ {CLIPBOARD_READY_NOTICE}",
 }
 
 
@@ -53,6 +63,7 @@ class TrayIcon:
         self._start_sni()
         self.app_state.connect("recording-state-changed", lambda *_: self._refresh())
         self.app_state.connect("error-message-changed", lambda *_: self._refresh())
+        self.app_state.connect("status-notice-changed", lambda *_: self._refresh())
         self._refresh()
 
     def stop(self) -> None:
@@ -144,6 +155,11 @@ class TrayIcon:
     def _status_text(self) -> str:
         if self.app_state.error_message:
             return f"状态：⚠ {self.app_state.error_message}"
+        if self.app_state.recording_state is not RecordingState.IDLE:
+            return _STATE_LABELS.get(self.app_state.recording_state, "状态：未知")
+        notice = _NOTICE_LABELS.get(self.app_state.status_notice)
+        if notice is not None:
+            return notice
         return _STATE_LABELS.get(self.app_state.recording_state, "状态：未知")
 
     def _refresh(self) -> None:

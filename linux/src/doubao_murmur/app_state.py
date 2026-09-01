@@ -24,6 +24,20 @@ class RecordingState(Enum):
     OBSERVING = "observing"
 
 
+class StatusNotice(Enum):
+    """Fixed, content-free daemon outcomes safe to show in controller UI."""
+
+    NONE = ""
+    CLIPBOARD_ARMED = "clipboard-armed"
+    CLIPBOARD_READY = "clipboard-ready"
+
+
+CLIPBOARD_ARMED_NOTICE = (
+    "已选择剪贴板交付；下一次开始时会先检查本地图形会话与剪贴板工具"
+)
+CLIPBOARD_READY_NOTICE = "上一条终稿已复制，可在远端手动粘贴；可能已被覆盖"
+
+
 class AppState(GObject.Object):
     """Shared application state, observable via GObject signals."""
 
@@ -32,6 +46,7 @@ class AppState(GObject.Object):
         "recording-state-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
         "transcription-text-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
         "error-message-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
+        "status-notice-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
     def __init__(self) -> None:
@@ -40,6 +55,7 @@ class AppState(GObject.Object):
         self._recording_state = RecordingState.IDLE
         self._transcription_text = ""
         self._error_message: str | None = None
+        self._status_notice = StatusNotice.NONE
 
     @property
     def login_status(self) -> LoginStatus:
@@ -80,6 +96,16 @@ class AppState(GObject.Object):
         if value != self._error_message:
             self._error_message = value
             self.emit("error-message-changed", value or "")
+
+    @property
+    def status_notice(self) -> StatusNotice:
+        return self._status_notice
+
+    @status_notice.setter
+    def status_notice(self, value: StatusNotice) -> None:
+        if value is not self._status_notice:
+            self._status_notice = value
+            self.emit("status-notice-changed", value.value)
 
     @property
     def is_recording(self) -> bool:

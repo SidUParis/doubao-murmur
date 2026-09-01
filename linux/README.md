@@ -33,6 +33,8 @@ ESC ────────────────┼─> Flatpak controller
 - `ESC` 始终排入 `cancel`，并清除尚未发送的 toggle。
 - 悬浮按钮与右 Alt 使用完全相同的控制路径。
 - 按钮显示启动、录音、等待最终结果、五秒纠错观察和错误状态。
+- 当 daemon 启用远程桌面剪贴板交付时，悬浮按钮与托盘在空闲状态显示
+  固定的“已启用”或“上一条已复制”提示；按钮保持完全可见。
 - 活动时每 500 ms 进行一次轻量 `status` 查询；空闲后停止查询。
 - 托盘只显示状态、帮助和退出，不再提供旧豆包登录、API Key、个人词表或软键盘入口。
 
@@ -75,6 +77,9 @@ flatpak run com.doubao.Murmur
 Flatpak 没有 PulseAudio/PipeWire 麦克风 socket、网络共享、Preedit1 D-Bus 权限、
 portal/notification 权限或 `flatpak-spawn` host 权限。移除这些权限只影响这个
 Flatpak，不会禁用宿主机的麦克风或 standalone daemon。
+
+剪贴板状态来自 daemon 返回的固定、不含文本内容的状态码。控制器不读取剪贴板，
+也不会为此增加剪贴板、麦克风或网络权限。
 
 构建阶段仍允许 pip 下载固定版本的 `python-xlib` 与 `six`；该网络能力不会进入
 安装后的运行时权限。
