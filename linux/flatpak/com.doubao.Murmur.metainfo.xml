@@ -25,7 +25,7 @@
     <name>Open Voice Input Linux contributors</name>
   </developer>
   <releases>
-    <release version="1.6.1" date="2026-09-01">
+    <release version="1.6.1" date="2026-09-02">
       <description>
         <p>Show fixed, content-free clipboard-delivery status notices in the
            controller, tray and floating button. Persistent RDP clipboard
