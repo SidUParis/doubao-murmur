@@ -412,8 +412,6 @@ class OverlayButton:
         """Show daemon recording, finalization, and observation states."""
         self._state = state
         self._recording = state in {"starting", "recording", "stopping"}
-        if self._recording:
-            self._error_message = ""
         self._refresh_visual()
         # Never leave the button half off-screen while it is the only
         # visible sign that dictation is live.

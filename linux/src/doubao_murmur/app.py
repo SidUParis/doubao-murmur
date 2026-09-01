@@ -52,6 +52,10 @@ _DAEMON_ERRORS = {
     "start-timeout": "语音输入启动超时",
     "preedit-lost": "输入焦点已改变，本次语音已取消",
     "recognition-context-invalid": "语音词表或纠错配置无效",
+    "clipboard-unavailable": (
+        "剪贴板工具不可用；请为当前桌面会话安装 xclip（X11）或 wl-clipboard（Wayland）"
+    ),
+    "clipboard-copy-failed": "终稿未能安全复制；没有自动粘贴或改写远端输入框",
     "microphone-unavailable": "没有可用的麦克风",
     "capture-start-failed": "麦克风启动失败",
     "provider-error": "语音识别服务发生错误",
@@ -245,10 +249,10 @@ class DoubaoMurmurApp(Gtk.Application):
         notice = _STATUS_NOTICES.get(reply.code)
         if notice is not None:
             self.app_state.status_notice = notice
-        elif command == "status":
-            # A fresh status without a clipboard notice supersedes any older
-            # content-free clipboard state. Non-status no-op commands do not
-            # erase the persistent mode last reported by the daemon.
+        elif command == "status" and reply.state == "idle":
+            # The daemon reports clipboard-armed only while idle. Active
+            # status polls must therefore retain the last content-free mode;
+            # a fresh ordinary idle status is what supersedes it.
             self.app_state.status_notice = StatusNotice.NONE
 
         message = _DAEMON_ERRORS.get(reply.code)

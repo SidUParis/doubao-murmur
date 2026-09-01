@@ -133,6 +133,18 @@ def test_error_and_active_state_keep_precedence_over_clipboard_notice():
     assert "ready" in indicator._button.classes
 
 
+def test_existing_error_keeps_precedence_when_active_state_arrives_later():
+    indicator = _indicator()
+    indicator.set_error("麦克风启动失败")
+
+    indicator.set_state("recording")
+
+    assert indicator._button.label == "⚠"
+    assert indicator._button.tooltip == "麦克风启动失败"
+    assert "error" in indicator._button.classes
+    assert "recording" not in indicator._button.classes
+
+
 def test_clearing_clipboard_notice_restores_idle_edge_tucking():
     indicator = _indicator()
     positions = []

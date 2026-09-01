@@ -324,6 +324,52 @@ def test_non_status_idle_reply_does_not_erase_persistent_clipboard_mode(monkeypa
     assert app.app_state.status_notice is StatusNotice.CLIPBOARD_ARMED
 
 
+def test_active_status_poll_and_cancel_do_not_erase_persistent_clipboard_mode(
+    monkeypatch,
+):
+    app, _worker = _configured_app(monkeypatch)
+    monkeypatch.setattr(app_module.GLib, "timeout_add", Mock(return_value=91))
+    monkeypatch.setattr(app_module.GLib, "source_remove", Mock())
+
+    app._apply_reply("status", DaemonReply(True, "clipboard-armed", "idle"))
+    app._apply_reply("status", DaemonReply(True, "status", "recording"))
+    app._apply_reply("cancel", DaemonReply(True, "cancelled", "idle"))
+
+    assert app.app_state.status_notice is StatusNotice.CLIPBOARD_ARMED
+    assert app.ptt_button.notices[-1] == StatusNotice.CLIPBOARD_ARMED.value
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        (
+            "clipboard-copy-failed",
+            "终稿未能安全复制；没有自动粘贴或改写远端输入框",
+        ),
+        (
+            "clipboard-unavailable",
+            "剪贴板工具不可用；请为当前桌面会话安装 "
+            "xclip（X11）或 wl-clipboard（Wayland）",
+        ),
+    ],
+)
+def test_successful_status_request_still_surfaces_clipboard_failure(
+    monkeypatch, code, message
+):
+    app, _worker = _configured_app(monkeypatch)
+
+    app._on_command_complete(
+        1,
+        "status",
+        DaemonReply(True, code, "idle"),
+        None,
+    )
+
+    assert app.app_state.error_message == message
+    assert app.ptt_button.errors[-1] == message
+    assert app.app_state.status_notice is StatusNotice.NONE
+
+
 def test_late_completion_cannot_overwrite_newer_state(monkeypatch):
     app, _worker = _configured_app(monkeypatch)
     app._on_command_complete(
