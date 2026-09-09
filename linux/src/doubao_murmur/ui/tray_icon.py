@@ -111,7 +111,10 @@ class TrayIcon:
         items.extend(
             [
                 None,
-                {"label": "退出兼容界面", "callback": self._on_quit_clicked},
+                {
+                    "label": "完全退出（停用语音快捷键）",
+                    "callback": self._on_quit_clicked,
+                },
             ]
         )
         return items
@@ -136,6 +139,8 @@ class TrayIcon:
             label=(
                 "此兼容界面只把右 Alt、ESC 和悬浮按钮转发给独立语音服务。"
                 "它不会读取 API Key，也没有麦克风或供应商网络权限。"
+                "关闭此窗口会保留快捷键和悬浮麦克风。"
+                "完全退出会停用它们；重新打开 Open Voice Input Linux 可恢复。"
             ),
             xalign=0,
             wrap=True,
@@ -147,7 +152,7 @@ class TrayIcon:
             help_button.connect("clicked", lambda _: self._on_help_clicked())
             box.append(help_button)
 
-        quit_button = Gtk.Button(label="退出兼容界面")
+        quit_button = Gtk.Button(label="完全退出（停用语音快捷键）")
         quit_button.connect("clicked", lambda _: self._on_quit_clicked())
         box.append(quit_button)
         self._window.set_child(box)

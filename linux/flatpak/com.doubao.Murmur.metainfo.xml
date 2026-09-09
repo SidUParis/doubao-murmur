@@ -25,6 +25,11 @@
     <name>Open Voice Input Linux contributors</name>
   </developer>
   <releases>
+    <release version="1.6.2" date="2026-09-09">
+      <description>
+        <p>Restore the floating microphone when reopening the controller, recover its position after monitor changes, and clarify that fully quitting disables voice shortcuts.</p>
+      </description>
+    </release>
     <release version="1.6.1" date="2026-09-02">
       <description>
         <p>Show fixed, content-free clipboard-delivery status notices in the

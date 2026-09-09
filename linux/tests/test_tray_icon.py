@@ -54,7 +54,7 @@ def test_menu_contains_status_help_and_quit_but_no_provider_settings():
     assert "状态：正在录音" in labels
     assert "状态" in labels
     assert "使用帮助" in labels
-    assert "退出兼容界面" in labels
+    assert "完全退出（停用语音快捷键）" in labels
     assert not any(
         "登录" in label or "API" in label or "词表" in label for label in labels
     )
