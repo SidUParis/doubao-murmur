@@ -143,6 +143,17 @@ def test_startup_only_requests_status(monkeypatch):
     assert app.ptt_button.show_calls == 1
 
 
+def test_reopen_restores_floating_button_and_refreshes_without_recording(monkeypatch):
+    app, worker = _configured_app(monkeypatch)
+    app._setup_done = True
+    app.do_activate()
+    assert app.ptt_button.show_calls == 2
+    assert app.tray_icon.show_calls == 1
+    assert worker.status_calls == 2
+    assert worker.toggle_intents == []
+    assert worker.cancel_calls == 0
+
+
 def test_right_alt_and_floating_button_share_toggle_path(monkeypatch):
     app, worker = _configured_app(monkeypatch)
 

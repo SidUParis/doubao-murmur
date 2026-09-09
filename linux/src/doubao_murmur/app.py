@@ -97,8 +97,14 @@ class DoubaoMurmurApp(Gtk.Application):
 
     def do_activate(self) -> None:
         if self._setup_done:
+            if self._quit_requested:
+                return
+            if self.ptt_button:
+                self.ptt_button.show()
             if self.tray_icon:
                 self.tray_icon.show_window()
+            if self.worker:
+                self.worker.submit_status()
             return
         self._setup_done = True
         self.hold()

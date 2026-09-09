@@ -6,6 +6,7 @@ from doubao_murmur.app_state import (
     StatusNotice,
 )
 from doubao_murmur.hotkey.overlay_button import OverlayButton
+from unittest.mock import Mock
 
 
 class _Button:
@@ -31,6 +32,81 @@ def _indicator():
     indicator = OverlayButton(lambda: None, lambda: None)
     indicator._button = _Button()
     return indicator
+
+
+def test_recovered_offscreen_position_is_persisted():
+    indicator = _indicator()
+    indicator._x, indicator._y = 3437, 393
+    indicator._monitor_geometry = lambda: None
+
+    def default():
+        indicator._x, indicator._y = 945, 1026
+
+    indicator._default_position = default
+    indicator._clamp_to_monitor = lambda: None
+    indicator._update_edge = lambda: None
+    indicator._apply_position = Mock()
+    indicator._save_position = Mock()
+    indicator._apply_saved_geometry()
+    indicator._save_position.assert_called_once()
+
+
+def test_monitor_change_revalidates_visible_button_without_recording():
+    indicator = _indicator()
+    indicator._window = Mock()
+    indicator._window.get_visible.return_value = True
+    indicator.show = Mock()
+    indicator._on_monitors_changed(None, 0, 1, 0)
+    indicator.show.assert_called_once()
+    indicator._window.get_visible.return_value = False
+    indicator._on_monitors_changed(None, 0, 0, 1)
+    assert indicator.show.call_count == 1
+
+
+def test_real_window_can_be_hidden_reopened_and_repositioned(monkeypatch, tmp_path):
+    import json
+    from gi.repository import GLib
+    from doubao_murmur.hotkey import overlay_button as module
+
+    path = tmp_path / "ptt.json"
+    path.write_text('{"x": 99999, "y": 99999, "edge": "right"}')
+    monkeypatch.setattr(module, "get_ptt_config_path", lambda: path)
+    press, cancel = Mock(), Mock()
+    indicator = OverlayButton(press, cancel)
+    indicator.create()
+    try:
+        for _ in range(2):
+            indicator.hide()
+            indicator.show()
+            loop = GLib.MainLoop()
+            GLib.timeout_add(400, lambda: (loop.quit(), False)[1])
+            loop.run()
+            assert indicator._window.get_visible()
+            assert indicator._monitor_geometry() is not None
+        from Xlib import X
+        from Xlib.display import Display
+
+        connection = Display()
+        try:
+            xid = indicator._window.get_surface().get_xid()
+            window = connection.create_resource_object("window", xid)
+            window.unmap()
+            connection.sync()
+            assert window.get_attributes().map_state == X.IsUnmapped
+            indicator.show()
+            loop = GLib.MainLoop()
+            GLib.timeout_add(400, lambda: (loop.quit(), False)[1])
+            loop.run()
+            connection.sync()
+            assert window.get_attributes().map_state == X.IsViewable
+        finally:
+            connection.close()
+        saved = json.loads(path.read_text())
+        assert (saved["x"], saved["y"]) == (indicator._x, indicator._y)
+        press.assert_not_called()
+        cancel.assert_not_called()
+    finally:
+        indicator._window.destroy()
 
 
 def test_recording_state_uses_stop_indicator():

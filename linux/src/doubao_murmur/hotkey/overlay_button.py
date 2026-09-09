@@ -170,6 +170,7 @@ class OverlayButton:
         # Apply CSS
         display = Gdk.Display.get_default()
         if display:
+            display.get_monitors().connect("items-changed", self._on_monitors_changed)
             provider = Gtk.CssProvider()
             provider.load_from_data(_PTT_CSS)
             Gtk.StyleContext.add_provider_for_display(
@@ -369,6 +370,9 @@ class OverlayButton:
     def show(self) -> None:
         if not self._window:
             return
+        # The window manager may have unmapped the surface while GTK still
+        # considers it visible. Remap it explicitly on user reactivation.
+        self._window.set_visible(False)
         present_overlay(self._window, OverlayRole.PTT)
         # present_overlay pins the window on a 50 ms timer; apply our own
         # geometry once that has settled.
@@ -376,9 +380,14 @@ class OverlayButton:
 
         GLib.timeout_add(250, self._apply_saved_geometry)
 
+    def _on_monitors_changed(self, _monitors, _position, _removed, _added) -> None:
+        if self._window and self._window.get_visible():
+            self.show()
+
     def _apply_saved_geometry(self) -> bool:
         from gi.repository import GLib
 
+        previous = (self._x, self._y, self._edge)
         if self._x is None or self._y is None:
             self._default_position()
         elif self._monitor_geometry() is None:
@@ -393,6 +402,8 @@ class OverlayButton:
         self._clamp_to_monitor()
         self._update_edge()
         self._apply_position(tucked=self._should_tuck())
+        if (self._x, self._y, self._edge) != previous:
+            self._save_position()
         return GLib.SOURCE_REMOVE
 
     def _clamp_to_monitor(self) -> None:
