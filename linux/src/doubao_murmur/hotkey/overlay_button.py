@@ -370,6 +370,9 @@ class OverlayButton:
     def show(self) -> None:
         if not self._window:
             return
+        # The window manager may have unmapped the surface while GTK still
+        # considers it visible. Remap it explicitly on user reactivation.
+        self._window.set_visible(False)
         present_overlay(self._window, OverlayRole.PTT)
         # present_overlay pins the window on a 50 ms timer; apply our own
         # geometry once that has settled.

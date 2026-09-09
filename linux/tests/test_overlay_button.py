@@ -83,6 +83,24 @@ def test_real_window_can_be_hidden_reopened_and_repositioned(monkeypatch, tmp_pa
             loop.run()
             assert indicator._window.get_visible()
             assert indicator._monitor_geometry() is not None
+        from Xlib import X
+        from Xlib.display import Display
+
+        connection = Display()
+        try:
+            xid = indicator._window.get_surface().get_xid()
+            window = connection.create_resource_object("window", xid)
+            window.unmap()
+            connection.sync()
+            assert window.get_attributes().map_state == X.IsUnmapped
+            indicator.show()
+            loop = GLib.MainLoop()
+            GLib.timeout_add(400, lambda: (loop.quit(), False)[1])
+            loop.run()
+            connection.sync()
+            assert window.get_attributes().map_state == X.IsViewable
+        finally:
+            connection.close()
         saved = json.loads(path.read_text())
         assert (saved["x"], saved["y"]) == (indicator._x, indicator._y)
         press.assert_not_called()
